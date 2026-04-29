@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>CodeBrix.Templating</AssemblyName>
+    <RootNamespace>CodeBrix.Templating</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <!-- NuGet package properties -->
+    <PackageId>CodeBrix.Templating.BsdLicenseForever</PackageId>
+    <Version>1.0.117</Version>
+    <Product>CodeBrix.Templating</Product>
+    <Title>CodeBrix.Templating</Title>
+    <Authors>Jeremy Ellis</Authors>
+    <Description>A fully managed, cross-platform text-templating and scripting language library for .NET. Parses and renders templates written in the Scriban and Liquid template languages, suitable for code generation, HTML pages, reports, configuration files, and any other text produced from a model. A fork of Scriban v7.1.0.</Description>
+    <PackageLicenseExpression>BSD-2-Clause</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/ellisnet/CodeBrix.Templating</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ellisnet/CodeBrix.Templating</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon-codebrix-128.png</PackageIcon>
+    <Copyright>Copyright (c) 2026 Jeremy Ellis and contributors</Copyright>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <IsPackable>true</IsPackable>
+    <PackageTags>templating;scriban;liquid;template-engine;code-generation;text-templates;rendering;CodeBrix</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\icon-codebrix-128.png" Pack="true" PackagePath="" />
+    <None Include="..\..\README.md" Pack="true" PackagePath="" />
+    <None Include="..\..\AGENT-README.txt" Pack="true" PackagePath="" />
+    <None Include="..\..\THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+</Project>

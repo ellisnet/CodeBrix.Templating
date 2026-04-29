@@ -1,0 +1,88 @@
+// Copyright (c) Alexandre Mutel. All rights reserved.
+// Licensed under the BSD-Clause 2 license.
+// See license.txt file in the project root for full license information.
+
+using System.Runtime.CompilerServices;
+
+namespace CodeBrix.Templating.Parsing; //was previously: Scriban.Parsing;
+/// <summary><c>TokenTypeExtensions</c>.</summary>
+public
+static class TokenTypeExtensions
+{
+    /// <summary><c>HasText</c>.</summary>
+    public static bool HasText(this TokenType type)
+    {
+        return ToText(type) is not null;
+    }
+    /// <summary><c>ToText</c>.</summary>
+    public static string ToText(this TokenType type)
+    {
+        return type switch
+        {
+            TokenType.CodeEnter => "{{",
+            TokenType.LiquidTagEnter => "{%",
+            TokenType.CodeExit => "}}",
+            TokenType.LiquidTagExit => "%}",
+            TokenType.SemiColon => ";",
+            TokenType.Arroba => "@",
+                TokenType.Caret => "^",
+            TokenType.DoubleCaret => "^^",
+            TokenType.Colon => ":",
+            TokenType.Equal => "=",
+            TokenType.VerticalBar => "|",
+            TokenType.PipeGreater => "|>",
+            TokenType.Exclamation => "!",
+            TokenType.DoubleAmp => "&&",
+            TokenType.DoubleVerticalBar => "||",
+            TokenType.Amp => "&",
+            TokenType.Question => "?",
+            TokenType.QuestionDot => "?.",
+            TokenType.DoubleQuestion => "??",
+            TokenType.QuestionExclamation => "?!",
+            TokenType.DoubleEqual => "==",
+            TokenType.ExclamationEqual => "!=",
+            TokenType.Less => "<",
+            TokenType.Greater => ">",
+            TokenType.LessEqual => "<=",
+            TokenType.GreaterEqual => ">=",
+            TokenType.Divide => "/",
+            TokenType.DivideEqual => "/=",
+            TokenType.DoubleDivide => "//",
+            TokenType.DoubleDivideEqual => "//=",
+            TokenType.Asterisk => "*",
+            TokenType.AsteriskEqual => "*=",
+            TokenType.Plus => "+",
+            TokenType.PlusEqual => "+=",
+            TokenType.Minus => "-",
+            TokenType.MinusEqual => "-=",
+            TokenType.DoublePlus => "++",
+            TokenType.DoubleMinus => "--",
+            TokenType.Percent => "%",
+            TokenType.PercentEqual => "%=",
+            TokenType.DoubleLessThan => "<<",
+            TokenType.DoubleGreaterThan => ">>",
+            TokenType.Comma => ",",
+            TokenType.Dot => ".",
+            TokenType.DoubleDot => "..",
+            TokenType.TripleDot => "...",
+            TokenType.DoubleDotLess => "..<",
+            TokenType.OpenParen => "(",
+            TokenType.CloseParen => ")",
+            TokenType.OpenBrace => "{",
+            TokenType.CloseBrace => "}",
+            TokenType.OpenBracket => "[",
+            TokenType.CloseBracket => "]",
+            TokenType.OpenInterpolatedBrace => "{",
+            TokenType.CloseInterpolatedBrace => "}",
+            _ => null
+        };
+    }
+    /// <summary><c>IsStringToken</c>.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool IsStringToken(this TokenType token) =>
+        token == TokenType.String || token == TokenType.InterpolatedString || token == TokenType.BeginInterpolatedString || token == TokenType.ContinuationInterpolatedString || token == TokenType.EndingInterpolatedString;
+    /// <summary><c>IsInterpolationStringToken</c>.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool IsInterpolationStringToken(this TokenType token) =>
+        token == TokenType.InterpolatedString || token == TokenType.BeginInterpolatedString || token == TokenType.ContinuationInterpolatedString || token == TokenType.EndingInterpolatedString;
+}

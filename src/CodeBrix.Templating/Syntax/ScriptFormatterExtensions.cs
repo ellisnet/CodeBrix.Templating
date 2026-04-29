@@ -1,0 +1,19 @@
+// Copyright (c) Alexandre Mutel. All rights reserved.
+// Licensed under the BSD-Clause 2 license.
+// See license.txt file in the project root for full license information.
+
+namespace CodeBrix.Templating.Syntax; //was previously: Scriban.Syntax;
+/// <summary><c>ScriptFormatterExtensions</c>.</summary>
+public
+static class ScriptFormatterExtensions
+{
+    /// <summary><c>Format</c>.</summary>
+    public static ScriptNode Format(this ScriptNode node, ScriptFormatterOptions options)
+    {
+        var formatter = new ScriptFormatter(options);
+        var newNode = formatter.Format(node);
+        return newNode;
+    }
+    /// <summary><c>HasFlags</c>.</summary>
+    public static bool HasFlags(this ScriptFormatterFlags input, ScriptFormatterFlags flags) => (input & flags) == flags;
+}

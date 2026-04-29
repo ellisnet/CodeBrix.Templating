@@ -1,0 +1,79 @@
+THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
+
+CodeBrix.Templating incorporates material from the project(s) listed below
+(collectively, "Third Party Code"). Jeremy Ellis and contributors are not the
+original author(s) of the Third Party Code. The original copyright notice and
+the license, under which Jeremy Ellis and contributors received such Third Party
+Code, are set forth below. Such license and notices are provided for
+informational purposes only. Jeremy Ellis and contributors license the
+CodeBrix.Templating project to you under the terms set forth in the LICENSE file,
+which is located at the root of this repository.
+
+If you have any questions about any Third Party Code noticed here, or if you
+believe that any Third Party Code noticed here has been included in
+CodeBrix.Templating in error, please open a new issue at:
+https://github.com/ellisnet/CodeBrix.Templating/issues
+
+================================================================================
+
+1.  Scriban v7.1.0 (https://github.com/scriban/scriban)
+
+    Copyright (c) Alexandre Mutel. All rights reserved.
+
+    License: BSD 2-Clause License
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+
+    1. Redistributions of source code must retain the above copyright notice,
+       this list of conditions and the following disclaimer.
+
+    2. Redistributions in binary form must reproduce the above copyright notice,
+       this list of conditions and the following disclaimer in the documentation
+       and/or other materials provided with the distribution.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+    IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+    ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+    LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+    CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+    SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+    INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+    CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+    ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+    POSSIBILITY OF SUCH DAMAGES.
+
+================================================================================
+
+2.  DotLiquid (https://github.com/dotliquid/dotliquid)
+
+    Copyright (c) 2007 Tobias Luetke
+    Copyright (c) the DotLiquid contributors
+
+    License: Apache License 2.0 / Microsoft Public License (Ms-PL) (dual)
+
+    Portions of the Liquid test suite in
+    tests/CodeBrix.Templating.Tests/LiquidTests/ were adapted from DotLiquid
+    and are distributed under DotLiquid's dual Apache-2.0 / Ms-PL license.
+    The full DotLiquid license text is preserved at
+    tests/CodeBrix.Templating.Tests/LiquidTests/dotliquid-license.txt in this
+    repository; consult that file for the authoritative terms.
+
+    Under the Apache License, Version 2.0:
+
+    Licensed under the Apache License, Version 2.0 (the "License"); you may
+    not use these files except in compliance with the License. You may obtain
+    a copy of the License at:
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+    License for the specific language governing permissions and limitations
+    under the License.
+
+================================================================================
+
+END OF THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
