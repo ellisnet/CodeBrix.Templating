@@ -2,9 +2,7 @@
 // Licensed under the BSD-Clause 2 license.
 // See license.txt file in the project root for full license information.
 
-using Newtonsoft.Json.Linq;
 using System;
-using System.Globalization;
 using System.Text.Json;
 using Xunit;
 

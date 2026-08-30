@@ -2,23 +2,19 @@
 // Copyright (c) Alexandre Mutel. All rights reserved.
 // Licensed under the BSD-Clause 2 license. See license.txt file in the project root for full license information.
 
+using CodeBrix.Templating.Parsing;
+using CodeBrix.Templating.Runtime;
+using CodeBrix.Templating.Syntax;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.Linq;
-using System.Reflection;
 using System.Text;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using DotLiquid.Tests.Tags;
-using Newtonsoft.Json.Linq;
 using Xunit;
-using CodeBrix.Templating.Helpers;
-using CodeBrix.Templating.Parsing;
-using CodeBrix.Templating.Runtime;
-using CodeBrix.Templating.Syntax;
 using static CodeBrix.Templating.Tests.TestFilesHelper;
 
 namespace CodeBrix.Templating.Tests; //was previously: Scriban.Tests;
@@ -796,10 +792,11 @@ Normal Text
     [Fact]
     public void EnsureThatItemWithIndexePropertyDoesNotThrow()
     {
-        var obj = JObject.Parse("{\"name\":\"steve\"}");
+        // JsonObject exposes an `Item[string]` indexer property, like Newtonsoft's JObject did
+        var obj = JsonNode.Parse("{\"name\":\"steve\"}")!.AsObject();
 
         var template = Template.Parse("Hi {{name}}");
-        Record.Exception(()=>template.Render(obj));
+        Assert.Null(Record.Exception(() => template.Render(obj)));
     }
     [Fact]
     public void EnsureMalformedFunctionDoesNotThrow()

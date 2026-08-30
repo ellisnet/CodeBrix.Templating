@@ -10,9 +10,9 @@ using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using System.Reflection;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
 using Xunit;
 using CodeBrix.Templating.Parsing;
 using CodeBrix.Templating.Runtime;
@@ -1104,10 +1104,22 @@ Tax: {{ 7 | match_tax }}";
         dataRow["Column2"] = "le monde";
         dataTable.Rows.Add(dataRow);
 
-        string json = JsonConvert.SerializeObject(dataTable);
+        // System.Text.Json has no built-in DataTable converter, so project the rows first
+        var rows = new List<Dictionary<string, object>>();
+        foreach (DataRow row in dataTable.Rows)
+        {
+            var entry = new Dictionary<string, object>();
+            foreach (DataColumn column in dataTable.Columns)
+            {
+                entry[column.ColumnName] = row[column];
+            }
+            rows.Add(entry);
+        }
+
+        string json = JsonSerializer.Serialize(rows);
         Console.WriteLine("Json: " + json);
 
-        var parsed = JsonConvert.DeserializeObject(json);
+        var parsed = JsonSerializer.Deserialize<JsonElement>(json);
         Console.WriteLine("Parsed: " + parsed);
 
         string myTemplate = @"
@@ -1132,6 +1144,9 @@ Tax: {{ 7 | match_tax }}";
         var result = template.Render(context);
         context.PopGlobal();
 
+        // The trailing `{{tb}}` dump renders the ScriptArray/ScriptObject graph that the
+        // JsonElement was converted into (Newtonsoft used to render its JObject/JProperty
+        // enumeration as `[[[Hello], [World]], ...]` instead)
         var expected =
             @"
 [
@@ -1143,7 +1158,7 @@ Tax: {{ 7 | match_tax }}";
     ""M"": le monde
   },
 ]
-[[[Hello], [World]], [[Bonjour], [le monde]]]
+[{Column1: ""Hello"", Column2: ""World""}, {Column1: ""Bonjour"", Column2: ""le monde""}]
 ";
 
         TextAssert.AreEqual(expected, result);
