@@ -54,7 +54,7 @@
     <Product>CodeBrix.Templating</Product>
     <Title>CodeBrix.Templating</Title>
     <Authors>Jeremy Ellis</Authors>
-    <Description>A fully managed, cross-platform text-templating and scripting language library for .NET. Parses and renders templates written in the Scriban and Liquid template languages, suitable for code generation, HTML pages, reports, configuration files, and any other text produced from a model. A fork of Scriban v7.1.0.</Description>
+    <Description>A fully managed, cross-platform text-templating and scripting language library for .NET. Parses and renders templates written in the Scriban and Liquid template languages, suitable for code generation, HTML pages, reports, configuration files, and any other text produced from a model.</Description>
     <PackageLicenseExpression>BSD-2-Clause</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/ellisnet/CodeBrix.Templating</PackageProjectUrl>
     <RepositoryUrl>https://github.com/ellisnet/CodeBrix.Templating</RepositoryUrl>

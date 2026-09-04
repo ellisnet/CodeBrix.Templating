@@ -32,10 +32,11 @@ What you get:
     * A full public AST with visitors, a rewriter, a formatter and a printer,
       so templates can be analysed, transformed and written back to text.
 
-Provenance: CodeBrix.Templating is a port of Scriban 7.1.0. Every type lives
-under the CodeBrix.Templating.* namespaces. Do NOT use Scriban.* namespaces --
-they do not exist in this library. The template language itself is unchanged,
-so Scriban/Liquid template text written for the upstream project parses here.
+Provenance: CodeBrix.Templating is a port of the Scriban template engine.
+Every type lives under the CodeBrix.Templating.* namespaces. Do NOT use
+Scriban.* namespaces -- they do not exist in this library. The template
+language itself is unchanged, so Scriban/Liquid template text written for the
+upstream project parses here.
 
 
 INSTALLATION

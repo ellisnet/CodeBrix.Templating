@@ -7,15 +7,22 @@ pages, reports, configuration files, and any other text produced from a
 model. It is provided as a .NET 10 library and the
 `CodeBrix.Templating.BsdLicenseForever` NuGet package.
 
-CodeBrix.Templating supports applications and assemblies that target
-Microsoft .NET version 10.0 and later. Microsoft .NET version 10.0 is a
-Long-Term Supported (LTS) version of .NET, released on Nov 11, 2025 and
-supported by Microsoft until Nov 14, 2028. Please update your C#/.NET
-code and projects to the latest LTS version of Microsoft .NET.
+CodeBrix.Templating supports applications and assemblies that target Microsoft .NET version 10.0 and later.
+Microsoft .NET version 10.0 is a Long-Term Supported (LTS) version of .NET, and was released on Nov 11, 2025; and will be actively supported by Microsoft until Nov 14, 2028.
+Please update your C#/.NET code and projects to the latest LTS version of Microsoft .NET.
 
-CodeBrix.Templating is a fork of the open-source
-[Scriban](https://github.com/scriban/scriban) library (v7.1.0) -- see
-below for licensing details.
+## Installation
+
+```
+dotnet add package CodeBrix.Templating.BsdLicenseForever
+```
+
+Note that the NuGet package ID and the namespace are different - there is no package named plain `CodeBrix.Templating`:
+
+* NuGet package ID: `CodeBrix.Templating.BsdLicenseForever`
+* Assembly and primary namespace: `CodeBrix.Templating` - i.e. `using CodeBrix.Templating;`
+
+XML documentation (IntelliSense) ships alongside the assembly. The package has no NuGet dependencies of its own.
 
 ## CodeBrix.Templating supports:
 
@@ -31,15 +38,6 @@ below for licensing details.
 * Template parsing, rewriting, formatting, and AST visitation
 * AOT-friendly operation (no runtime code generation required for the
   core engine)
-
-## Installation
-
-```
-dotnet add package CodeBrix.Templating.BsdLicenseForever
-```
-
-The NuGet package name is `CodeBrix.Templating.BsdLicenseForever`. The
-root namespace and assembly name are both `CodeBrix.Templating`.
 
 ## Sample Code
 
@@ -67,7 +65,6 @@ var result = await template.RenderAsync(new { items = new[] { "a", "b", "c" } })
 
 ```csharp
 using CodeBrix.Templating;
-using CodeBrix.Templating.Parsing;
 
 var template = Template.ParseLiquid("Hello {{ name }}!");
 var result = template.Render(new { name = "World" });
@@ -89,23 +86,17 @@ var template = Template.Parse("Welcome to {{ project }}.");
 var result = template.Render(context);
 ```
 
-Additional sample code and usage examples are in the
-`CodeBrix.Templating.Tests` project. Scriban language documentation is at
-[scriban/doc](https://github.com/scriban/scriban/tree/master/doc).
+## Documentation
+
+The NuGet package includes `AGENT-README.txt`, a complete API reference and usage guide written for AI coding agents - point your agent at that file when it is writing code against this library. It also documents the template-language syntax the engine accepts.
+
+Additional sample code and usage examples are available in the `CodeBrix.Templating.Tests` project:
+https://github.com/ellisnet/CodeBrix.Templating/tree/main/tests/CodeBrix.Templating.Tests
 
 ## License
 
-The project is licensed under the BSD 2-Clause License. See
-[the BSD-2-Clause Wikipedia article](https://en.wikipedia.org/wiki/BSD_licenses#2-clause_license_%28%22Simplified_BSD_License%22_or_%22FreeBSD_License%22%29)
-for a brief overview.
+CodeBrix.Templating is licensed under the BSD 2-Clause License - see the
+[LICENSE](https://github.com/ellisnet/CodeBrix.Templating/blob/main/LICENSE) file.
 
-All code originating from Scriban v7.1.0 was included under the BSD
-2-Clause License, the same license used by this project; per-file
-upstream copyright notices are preserved verbatim. This project
-(CodeBrix.Templating) complies with all provisions of the source code
-license of Scriban v7.1.0 (BSD 2-Clause License).
-
-Parts of the Liquid test suite were adapted from the
-[DotLiquid](https://github.com/dotliquid/dotliquid) project, which is
-dual-licensed under Apache-2.0 / MS-PL; see `THIRD-PARTY-NOTICES.txt`
-for the full attribution.
+For licensing and provenance information about the open source code included in
+this package, see [THIRD-PARTY-NOTICES.txt](https://github.com/ellisnet/CodeBrix.Templating/blob/main/THIRD-PARTY-NOTICES.txt).

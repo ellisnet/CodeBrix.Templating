@@ -37,7 +37,14 @@ REPOSITORY LAYOUT
       LICENSE                     BSD-2-Clause
       THIRD-PARTY-NOTICES.txt     upstream attributions (shipped in the nupkg)
       icon-codebrix-128.png       package icon (shipped in the nupkg)
-      CodeBrix.Templating.slnx    solution
+      CodeBrix.Templating.slnx    solution; the Solution Items folder carries
+                                  .gitignore, AGENT-README.txt,
+                                  EXTRAS-README.txt, global.json,
+                                  icon-codebrix-128.png, LICENSE,
+                                  MAINTAINER-README.txt, README-INDEX.txt,
+                                  README.md and THIRD-PARTY-NOTICES.txt, and
+                                  the Tests folder carries the test project
+      global.json                 selects the test runner; see TESTING
       .gitignore
       AGENTS.md, CLAUDE.md, .clinerules, .cursorrules, .windsurfrules,
       .cursor/rules/agent-readme.mdc, .github/copilot-instructions.md,
@@ -129,9 +136,22 @@ TESTING
 
     dotnet test CodeBrix.Templating.slnx
 
-The test project uses xunit.v3 with the Visual Studio runner, coverlet for
-coverage, SilverAssertions for fluent assertions, and Newtonsoft.Json for a
-few JSON comparison helpers. It has a ProjectReference to the library (not a
+THE TEST RUNNER IS Microsoft.Testing.Platform (MTP), selected by global.json
+at the repository root:
+
+    { "test": { "runner": "Microsoft.Testing.Platform" } }
+
+Because that setting lives in global.json rather than in the csproj, it
+applies to every `dotnet test` run anywhere in the repository, including CI.
+The file has no `sdk` section and pins no SDK version, so the newest installed
+.NET 10 SDK is still used. Keep it committed -- without it `dotnet test`
+silently falls back to the older VSTest bridge.
+
+The test project uses xunit.v3 with the Visual Studio runner and
+SilverAssertions for fluent assertions; those, with Microsoft.NET.Test.Sdk,
+are its only PackageReferences. There is no coverage collector, and the JSON
+comparison helpers use System.Text.Json. It has a ProjectReference to the
+library (not a
 PackageReference) and sees the library internals through
 src/CodeBrix.Templating/InternalsVisibleTo.cs.
 
