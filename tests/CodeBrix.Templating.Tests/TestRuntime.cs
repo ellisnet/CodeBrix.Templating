@@ -40,6 +40,13 @@ public class TestRuntime
         return Assert.Throws<TException>(code) ?? throw new Xunit.Sdk.XunitException($"Expected {typeof(TException).Name}.");
     }
 
+    private static string RenderWithObject(string script, object value)
+    {
+        var context = new TemplateContext();
+        context.PushGlobal(new ScriptObject { ["obj"] = value });
+        return Template.Parse(script).Render(context);
+    }
+
     [Fact]
     public void TestFunctionPointerWithPath()
     {
@@ -121,6 +128,139 @@ public class TestRuntime
     }
 
     [Fact]
+    public void OutputLimitShouldFollowLimitToStringUnlessOverridden()
+    {
+        var context = new TemplateContext { LimitToString = 5 };
+        var template = Template.Parse("abcdefgh");
+
+        Assert.Null(context.OutputLimit);
+        Assert.Equal(ScriptLimitBehavior.Truncate, context.OnStringLimit);
+        Assert.Equal(ScriptLimitBehavior.Truncate, context.OnOutputLimit);
+        Assert.Equal("abcde...", template.Render(context));
+        context.LimitToString = 3;
+        Assert.Equal("abc...", template.Render(context));
+        context.OutputLimit = 6;
+        Assert.Equal("abcdef...", template.Render(context));
+        context.LimitToString = 1;
+        Assert.Equal("abcdef...", template.Render(context));
+        context.OutputLimit = null;
+        Assert.Equal("a...", template.Render(context));
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(20)]
+    public void OutputLimitShouldAllowIndependentStringTruncation(int outputLimit)
+    {
+        var context = new TemplateContext { LimitToString = 3, OutputLimit = outputLimit };
+
+        Assert.Equal("abc...abc...", Template.Parse("{{ 'abcd' }}{{ 'abcd' }}").Render(context));
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(20)]
+    public void OutputLimitShouldApplyIndependentlyOfStringLimit(int stringLimit)
+    {
+        var context = new TemplateContext { LimitToString = stringLimit, OutputLimit = 5 };
+
+        Assert.Equal("abcde...", Template.Parse("ab{{ 'cdef' }}gh").Render(context));
+        Assert.Equal("abcde", Template.Parse("abcde").Render(context));
+        Assert.Equal("abcde...", Template.Parse("abcdefgh").Render(context));
+    }
+
+    [Fact]
+    public void OutputLimitShouldThrowBeforeWritingTheOverflowingChunk()
+    {
+        var context = new TemplateContext { OutputLimit = 5, OnOutputLimit = ScriptLimitBehavior.Throw };
+        var template = Template.Parse("abc{{ 'def' }}");
+
+        var exception = Assert.Throws<ScriptRuntimeException>(() => template.Render(context));
+
+        Assert.Contains("OutputLimit `5`", exception.Message);
+        Assert.Equal("abc", context.Output.ToString());
+        context.Reset();
+        Assert.Equal("abcde", Template.Parse("abcde").Render(context));
+    }
+
+    [Fact]
+    public void OutputLimitShouldCountUtf16CharactersForCustomOutputs()
+    {
+        using var writer = new System.IO.StringWriter();
+        var context = new TemplateContext { OutputLimit = 4 };
+        context.PushOutput(new TextWriterOutput(writer));
+
+        Template.Parse("é😀z!").Render(context);
+
+        Assert.Equal("é😀z...", writer.ToString());
+    }
+
+    [Fact]
+    public void OutputLimitShouldIncludeIndentation()
+    {
+        var context = new TemplateContext { OutputLimit = 5, CurrentIndent = "  " };
+
+        context.Write("ab\ncd");
+
+        Assert.Equal("ab\n  ...", context.Output.ToString());
+    }
+
+    [Theory]
+    [InlineData("abcd{{ include 'test' }}", 12)]
+    [InlineData("{{ capture x }}abcd{{ end }}ef", 5)]
+    public void OutputLimitShouldBeSharedWithNestedOutputs(string text, int outputLimit)
+    {
+        var context = new TemplateContext
+        {
+            OutputLimit = outputLimit,
+            OnOutputLimit = ScriptLimitBehavior.Throw,
+            TemplateLoader = new TestIncludes.DummyLoader()
+        };
+
+        Assert.Throws<ScriptRuntimeException>(() => Template.Parse(text).Render(context));
+    }
+
+    [Fact]
+    public void OutputLimitThrowPolicyShouldRespectFallbackAndDisabledLimits()
+    {
+        var context = new TemplateContext { LimitToString = 3, OnOutputLimit = ScriptLimitBehavior.Throw };
+        var template = Template.Parse("abcd");
+
+        Assert.Throws<ScriptRuntimeException>(() => template.Render(context));
+        context.OutputLimit = 0;
+        Assert.Equal("abcd", template.Render(context));
+        context.OutputLimit = null;
+        context.LimitToString = 0;
+        Assert.Equal("abcd", template.Render(context));
+    }
+
+    [Fact]
+    public void StringLimitPolicyShouldPreserveTheExistingConversionBoundary()
+    {
+        var context = new TemplateContext { LimitToString = 3, OutputLimit = 0 };
+
+        Assert.Equal("abc...", context.ObjectToString("abc"));
+        context.OnStringLimit = ScriptLimitBehavior.Throw;
+        Assert.Throws<ScriptRuntimeException>(() => context.ObjectToString("abc"));
+    }
+
+    [Fact]
+    public void StringLimitShouldThrowInsteadOfTruncatingWhenRequested()
+    {
+        var context = new TemplateContext { LimitToString = 3, OutputLimit = 0, OnStringLimit = ScriptLimitBehavior.Throw };
+
+        var exception = Assert.Throws<ScriptRuntimeException>(() => context.ObjectToString("abcd"));
+
+        Assert.Contains("LimitToString `3`", exception.Message);
+        Assert.Equal("ab", context.ObjectToString("ab"));
+        Assert.Throws<ScriptRuntimeException>(() => context.ObjectToString(new[] { "ab", "cd" }));
+        context.LimitToString = 0;
+        Assert.Equal("abcd", context.ObjectToString("abcd"));
+    }
+
+    [Fact]
     public void ResetShouldClearCumulativeRenderOutputTracking()
     {
         var context = new TemplateContext
@@ -138,6 +278,20 @@ public class TestRuntime
     }
 
     [Fact]
+    public void RenderShouldResetCumulativeOutputTracking()
+    {
+        var context = new TemplateContext
+        {
+            LimitToString = 5
+        };
+        var largeTemplate = Template.Parse("{{ 'abc' }}{{ 'def' }}");
+        var smallTemplate = Template.Parse("{{ 'xy' }}");
+
+        Assert.Equal("abcde...", largeTemplate.Render(context));
+        Assert.Equal("xy", smallTemplate.Render(context));
+    }
+
+    [Fact]
     public void StringMultiplicationShouldRespectLimitToString()
     {
         var context = new TemplateContext
@@ -149,6 +303,14 @@ public class TestRuntime
         var exception = Assert.Throws<ScriptRuntimeException>(() => template.Render(context));
 
         Assert.Contains("LimitToString", exception.Message);
+    }
+
+    [Fact]
+    public void EmptyStringMultiplicationShouldReturnWithoutRepeating()
+    {
+        var template = Template.Parse("{{ '' * 2147483647 }}");
+
+        Assert.Equal(string.Empty, template.Render());
     }
 
     [Fact]
@@ -209,6 +371,101 @@ public class TestRuntime
     }
 
     [Fact]
+    public void ArrayAddShouldRespectLoopLimitForInternalIteration()
+    {
+        var context = new TemplateContext
+        {
+            LoopLimit = 5
+        };
+        context.PushGlobal(new ScriptObject
+        {
+            { "numbers", Enumerable.Range(0, 10).ToList() }
+        });
+
+        var template = Template.Parse("{{ numbers | array.add 10 | array.size }}");
+
+        var exception = Assert.Throws<ScriptRuntimeException>(() => template.Render(context));
+
+        Assert.Contains("iteration limit `5`", exception.Message);
+    }
+
+    [Fact]
+    public void ArrayRemoveAtShouldRespectLoopLimitForInternalIteration()
+    {
+        var context = new TemplateContext
+        {
+            LoopLimit = 5
+        };
+        context.PushGlobal(new ScriptObject
+        {
+            { "numbers", Enumerable.Range(0, 10).ToList() }
+        });
+
+        var template = Template.Parse("{{ numbers | array.remove_at 0 | array.size }}");
+
+        var exception = Assert.Throws<ScriptRuntimeException>(() => template.Render(context));
+
+        Assert.Contains("iteration limit `5`", exception.Message);
+    }
+
+    [Fact]
+    public void ObjectSizeShouldRespectLoopLimitForInternalIteration()
+    {
+        var context = new TemplateContext
+        {
+            LoopLimit = 5
+        };
+        context.PushGlobal(new ScriptObject
+        {
+            { "numbers", Enumerable.Range(0, 10) }
+        });
+
+        var template = Template.Parse("{{ numbers | object.size }}");
+
+        var exception = Assert.Throws<ScriptRuntimeException>(() => template.Render(context));
+
+        Assert.Contains("iteration limit `5`", exception.Message);
+    }
+
+    [Fact]
+    public void ObjectKeysShouldRespectLoopLimitForInternalIteration()
+    {
+        var context = new TemplateContext
+        {
+            LoopLimit = 5
+        };
+        context.PushGlobal(new ScriptObject
+        {
+            { "items", Enumerable.Range(0, 10).ToDictionary(index => index.ToString(CultureInfo.InvariantCulture), index => (object)index) }
+        });
+
+        var template = Template.Parse("{{ items | object.keys | array.size }}");
+
+        var exception = Assert.Throws<ScriptRuntimeException>(() => template.Render(context));
+
+        Assert.Contains("iteration limit `5`", exception.Message);
+    }
+
+    [Fact]
+    public void ObjectValuesShouldRespectLoopLimitForInternalIteration()
+    {
+        var context = new TemplateContext
+        {
+            LoopLimit = 5
+        };
+        context.PushGlobal(new ScriptObject
+        {
+            { "items", Enumerable.Range(0, 10).ToDictionary(index => index.ToString(CultureInfo.InvariantCulture), index => (object)index) }
+        });
+
+        var template = Template.Parse("{{ items | object.values | array.size }}");
+
+        var exception = Assert.Throws<ScriptRuntimeException>(() => template.Render(context));
+
+        Assert.Contains("iteration limit `5`", exception.Message);
+    }
+
+    [Fact]
     public void ArrayJoinShouldRespectLoopLimitForInternalIteration()
     {
         var context = new TemplateContext
@@ -244,6 +501,181 @@ public class TestRuntime
         var exception = Assert.Throws<ScriptRuntimeException>(() => template.Render(context));
 
         Assert.Contains("iteration limit `5`", exception.Message);
+    }
+
+    [Fact]
+    public void ArrayInsertAtShouldRespectLoopLimitForInternalIteration()
+    {
+        var context = new TemplateContext
+        {
+            LoopLimit = 10
+        };
+        var template = Template.Parse("{{ [1] | array.insert_at 200000000 'x' | array.size }}");
+
+        var exception = Assert.Throws<ScriptRuntimeException>(() => template.Render(context));
+
+        Assert.Contains("iteration limit `10`", exception.Message);
+    }
+
+    [Fact]
+    public void ArrayIndexedAssignmentShouldRespectLoopLimitForExpansion()
+    {
+        var context = new TemplateContext
+        {
+            LoopLimit = 10
+        };
+        var template = Template.Parse("{{ values = []; values[11] = 1; values.size }}");
+
+        var exception = Assert.Throws<ScriptRuntimeException>(() => template.Render(context));
+
+        Assert.Contains("iteration limit `10`", exception.Message);
+    }
+
+    [Fact]
+    public void ArrayMultiplyShouldRespectLoopLimitForInternalIteration()
+    {
+        var context = new TemplateContext
+        {
+            LoopLimit = 10
+        };
+        var template = Template.Parse("{{ ([1, 2, 3, 4, 5] * 50000000) | array.size }}");
+
+        var exception = Assert.Throws<ScriptRuntimeException>(() => template.Render(context));
+
+        Assert.Contains("iteration limit `10`", exception.Message);
+    }
+
+    [Fact]
+    public void LazyArrayMultiplyShouldRespectLoopLimitForEmptySequence()
+    {
+        var context = new TemplateContext
+        {
+            LoopLimit = 10
+        };
+        var template = Template.Parse("{{ (([] | array.reverse) * 11) | array.size }}");
+
+        var exception = Assert.Throws<ScriptRuntimeException>(() => template.Render(context));
+
+        Assert.Contains("iteration limit `10`", exception.Message);
+    }
+
+    [Fact]
+    public void LazyArrayMultiplyShouldAllowWorkWithinLoopLimit()
+    {
+        var context = new TemplateContext
+        {
+            LoopLimit = 10
+        };
+        var template = Template.Parse("{{ (([1] | array.reverse) * 3) | array.size }}");
+
+        Assert.Equal("3", template.Render(context));
+    }
+
+    [Fact]
+    public void NestedInternalIterationShouldShareLoopLimit()
+    {
+        var context = new TemplateContext
+        {
+            LoopLimit = 10
+        };
+        var template = Template.Parse("{{ (([1, 2, 3, 4, 5] | array.filter @(do; ret false; end)) * 2) | array.size }}");
+
+        var exception = Assert.Throws<ScriptRuntimeException>(() => template.Render(context));
+
+        Assert.Contains("iteration limit `10`", exception.Message);
+    }
+
+    [Fact]
+    public void InternalIterationShouldShareContainingLoopLimit()
+    {
+        var context = new TemplateContext
+        {
+            LoopLimit = 10
+        };
+        var template = Template.Parse("{{ for i in 1..2; [1, 2, 3, 4, 5] | array.reverse | array.size; end }}");
+
+        var exception = Assert.Throws<ScriptRuntimeException>(() => template.Render(context));
+
+        Assert.Contains("iteration limit `10`", exception.Message);
+    }
+
+    [Fact]
+    public void BatchedInternalIterationShouldShareContainingLoopLimit()
+    {
+        var context = new TemplateContext
+        {
+            LoopLimit = 10
+        };
+        var template = Template.Parse("{{ values = [1, 2, 3, 4, 5]; for i in 1..2; values * 1 | array.size; end }}");
+
+        var exception = Assert.Throws<ScriptRuntimeException>(() => template.Render(context));
+
+        Assert.Contains("iteration limit `10`", exception.Message);
+    }
+
+    [Fact]
+    public void SequentialInternalIterationShouldUseSeparateLoopLimits()
+    {
+        var context = new TemplateContext
+        {
+            LoopLimit = 5
+        };
+        var template = Template.Parse("{{ [1, 2, 3, 4, 5] | array.reverse | array.size; [1, 2, 3, 4, 5] | array.reverse | array.size }}");
+
+        Assert.Equal("55", template.Render(context));
+    }
+
+    [Fact]
+    public void DisposedLazyIterationShouldReleaseLoopLimitScope()
+    {
+        var context = new TemplateContext
+        {
+            LoopLimit = 5
+        };
+        var template = Template.Parse("{{ [1, 2, 3, 4, 5] | array.reverse | array.first; [1, 2, 3, 4, 5] | array.reverse | array.size }}");
+
+        Assert.Equal("55", template.Render(context));
+    }
+
+    [Fact]
+    public void FailedInternalIterationShouldReleaseLoopLimitScope()
+    {
+        var context = new TemplateContext
+        {
+            LoopLimit = 5
+        };
+        var failingTemplate = Template.Parse("{{ [1, 2, 3, 4, 5, 6] | array.reverse | array.size }}");
+        var validTemplate = Template.Parse("{{ [1] | array.reverse | array.size }}");
+
+        Assert.Throws<ScriptRuntimeException>(() => failingTemplate.Render(context));
+
+        Assert.Equal("1", validTemplate.Render(context));
+    }
+
+    [Fact]
+    public void ZeroLoopLimitShouldDisableInternalIterationLimit()
+    {
+        var context = new TemplateContext
+        {
+            LoopLimit = 0
+        };
+        var template = Template.Parse("{{ 1..1100 | array.reverse | array.size }}");
+
+        Assert.Equal("1100", template.Render(context));
+    }
+
+    [Fact]
+    public void ArrayMultiplyShouldRejectOverflowingResultLength()
+    {
+        var context = new TemplateContext
+        {
+            LoopLimit = 0
+        };
+        var template = Template.Parse("{{ [1, 2, 3, 4, 5] * 429496730 }}");
+
+        var exception = Assert.Throws<ScriptRuntimeException>(() => template.Render(context));
+
+        Assert.Contains("maximum supported array length", exception.Message);
     }
 
     [Fact]
@@ -823,6 +1255,130 @@ end -}}
         TextAssert.AreEqual("12300", result);
     }
 
+    [Fact]
+    public void TestParametricFunctionCanMutateGlobalVariableScope()
+    {
+        var template = Template.Parse(@"
+{{-
+my_global_var = 1
+
+func mutate_global(x)
+my_global_var += 1
+end
+
+mutate_global 0
+my_global_var
+-}}
+");
+
+        var result = template.Render();
+        TextAssert.AreEqual("2", result);
+    }
+
+    [Fact]
+    public void TestParametricFunctionVariablesDoNotLeakToGlobalScope()
+    {
+        var template = Template.Parse(@"
+{{-
+func set_function_variable(x)
+function_variable = x
+end
+
+set_function_variable 42
+function_variable
+-}}
+");
+
+        var result = template.Render();
+        TextAssert.AreEqual(string.Empty, result);
+    }
+
+    [Fact]
+    public void TestParametricFunctionDoesNotExposeCallerFunctionScope()
+    {
+        var template = Template.Parse(@"
+{{-
+func read_x(y)
+ret x
+end
+
+func caller(x)
+ret read_x 0
+end
+
+caller 42
+-}}
+");
+
+        var result = template.Render();
+        TextAssert.AreEqual(string.Empty, result);
+    }
+
+    [Fact]
+    public void TestParameterlessFunctionDoesNotExposeCallerFunctionScope()
+    {
+        var template = Template.Parse(@"
+{{-
+func read_x
+ret x
+end
+
+func caller(x)
+ret read_x
+end
+
+caller 42
+-}}
+");
+
+        var result = template.Render();
+        TextAssert.AreEqual(string.Empty, result);
+    }
+
+    [Fact]
+    public void TestWithStatementWritesToCurrentGlobalScope()
+    {
+        var template = Template.Parse(@"
+{{-
+my_global_var = 1
+target = {}
+
+with target
+my_global_var = 2
+end
+
+my_global_var; '|'; target.my_global_var
+-}}
+");
+
+        var result = template.Render();
+        TextAssert.AreEqual("1|2", result);
+    }
+
+    [Fact]
+    public void TestParametricFunctionWritesToWithScope()
+    {
+        var template = Template.Parse(@"
+{{-
+my_global_var = 1
+target = {}
+
+with target
+func mutate_global(x)
+    my_global_var += 1
+end
+
+mutate_global 0
+end
+
+my_global_var; '|'; target.my_global_var
+-}}
+");
+
+        var result = template.Render();
+        TextAssert.AreEqual("1|2", result);
+    }
+
 
     [Fact]
     public void TestPipeAndFunctionAndLoop()
@@ -1237,6 +1793,125 @@ Tax: {{ 7 | match_tax }}";
     }
 
     [Fact]
+    public void TestContextlessScriptObjectAccessDoesNotCreateContext()
+    {
+        var scriptObject = new ContextTrackingScriptObject();
+        scriptObject.SetValue("value", 1, false);
+
+        Assert.Equal(1, scriptObject["value"]);
+        Assert.Null(scriptObject.LastContext);
+
+        scriptObject["value"] = 2;
+        Assert.Null(scriptObject.LastContext);
+
+        var dictionary = (IDictionary<string, object>)scriptObject;
+        Assert.True(dictionary.TryGetValue("value", out var value));
+        Assert.Equal(2, value);
+        Assert.Null(scriptObject.LastContext);
+    }
+
+    [Fact]
+    public void TestContextlessCustomScriptObjectAccessUsesNullContext()
+    {
+        IScriptObject scriptObject = new ContextTrackingScriptObject();
+
+        scriptObject.SetValue("value", 1, false);
+        Assert.Null(((ContextTrackingScriptObject)scriptObject).LastSetContext);
+
+        Assert.True(scriptObject.TryGetValue("value", out var value));
+        Assert.Equal(1, value);
+        Assert.Null(((ContextTrackingScriptObject)scriptObject).LastGetContext);
+    }
+
+    [Fact]
+    public void TestContextlessCustomScriptObjectImportUsesNullContext()
+    {
+        var scriptObject = new ContextlessScriptObject();
+        scriptObject.Import(new ContextlessImportModel());
+        scriptObject.Import(typeof(ContextlessImportModel));
+        scriptObject.Import("function", new Func<string>(() => "delegate"));
+
+        Assert.True(scriptObject.TryGetValue("field", out var value));
+        Assert.Equal("field value", value);
+        Assert.True(scriptObject.TryGetValue("property", out value));
+        Assert.Equal("property value", value);
+        Assert.True(scriptObject.TryGetValue("method", out value));
+        Assert.IsAssignableFrom<IScriptCustomFunction>(value);
+        Assert.True(scriptObject.TryGetValue("function", out value));
+        Assert.IsAssignableFrom<IScriptCustomFunction>(value);
+    }
+
+    [Fact]
+    public void TestCustomGlobalVariableUsesGlobalScope()
+    {
+        var context = new TemplateContext { StrictVariables = true };
+        var variable = new CustomGlobalVariable("value");
+        context.SetValue(variable, "expected");
+        context.PushGlobal(new ScriptObject());
+
+        Assert.Equal("expected", context.GetValue(variable));
+        Assert.Equal("expected", context.GetValue(new ScriptVariableGlobal("value")));
+
+        context.TryGetVariable = (TemplateContext ctx, SourceSpan span, ScriptVariable requested, out object value) =>
+        {
+            Assert.Same(variable, requested);
+            value = "fallback";
+            return true;
+        };
+        context.PopGlobal();
+        context.DeleteValue(variable);
+        Assert.Equal("fallback", context.GetValue(variable));
+    }
+
+    [Fact]
+    public void TestInterfaceHelpersDoNotAllocateContexts()
+    {
+        foreach (IScriptObject scriptObject in new IScriptObject[] { new ScriptObject(), new ScriptArray(), new ScriptArray<int>(), new ContextTrackingScriptObject(), new ContextlessScriptObject() })
+        {
+            const string expected = "expected";
+            scriptObject.SetValue("value", expected, false);
+            // Warm up before measuring; use a reference value to avoid boxing in the loop.
+            for (int i = 0; i < 100; i++)
+            {
+                scriptObject.SetValue("value", expected, false);
+                scriptObject.TryGetValue("value", out _);
+            }
+
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++)
+            {
+                scriptObject.SetValue("value", expected, false);
+                scriptObject.TryGetValue("value", out _);
+            }
+            var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.True(allocated == 0, scriptObject.GetType().Name);
+            Assert.True(scriptObject.TryGetValue("value", out var value));
+            Assert.Equal(expected, value);
+            scriptObject.SetValue("value", expected, true);
+            scriptObject.SetValue("value", "ignored", false);
+            Assert.True(scriptObject.TryGetValue("value", out value));
+            Assert.Equal(expected, value);
+            Assert.False(scriptObject.TryGetValue("missing", out _));
+        }
+    }
+
+    [Theory]
+    [InlineData("{{ obj.value = 'updated'; obj.value }}")]
+    [InlineData("{{ obj['value'] = 'updated'; obj['value'] }}")]
+    public void TestScriptObjectEvaluationUsesActiveContext(string text)
+    {
+        var scriptObject = new ContextTrackingScriptObject();
+        var context = new TemplateContext();
+        context.PushGlobal(new ScriptObject { ["obj"] = scriptObject });
+
+        Assert.Equal("updated", Template.Parse(text).Render(context));
+        Assert.Same(context, scriptObject.LastGetContext);
+        Assert.Same(context, scriptObject.LastContext);
+        Assert.Same(context, scriptObject.LastSetContext);
+    }
+
+    [Fact]
     public void TestScriptObjectImportDelegateOptionalParameter()
     {
         var obj = new ScriptObject();
@@ -1343,6 +2018,39 @@ Tax: {{ 7 | match_tax }}";
 
             var exception = Assert.Throws<ScriptRuntimeException>(() => template.Render(context));
             Assert.Contains("Cannot get member", exception.Message);
+        }
+    }
+
+    [Fact]
+    public void TestTypedObjectAccessorSetterVisibility()
+    {
+        var obj = new ObjectWithRestrictedSetters { InitOnlyValue = "init" };
+
+        RenderWithObject("{{ obj.public_value = 'changed' }}", obj);
+        Assert.Equal("changed", obj.PublicValue);
+
+        RenderWithObject("{{ obj.public_field = 'changed' }}", obj);
+        Assert.Equal("changed", obj.PublicField);
+
+        AssertReadonly("{{ obj.private_set_value = 'changed' }}");
+        Assert.Equal("private", obj.PrivateSetValue);
+
+        AssertReadonly("{{ obj.internal_set_value = 'changed' }}");
+        Assert.Equal("internal", obj.InternalSetValue);
+
+        AssertReadonly("{{ obj.init_only_value = 'changed' }}");
+        Assert.Equal("init", obj.InitOnlyValue);
+
+        AssertReadonly("{{ obj.read_only_field = 'changed' }}");
+        Assert.Equal("readonly", obj.ReadOnlyField);
+
+        AssertReadonly("{{ obj['key'] = 'changed' }}");
+        Assert.Equal("indexer", obj["key"]);
+
+        void AssertReadonly(string script)
+        {
+            var exception = Assert.Throws<ScriptRuntimeException>(() => RenderWithObject(script, obj));
+            Assert.Contains("readonly", exception.Message);
         }
     }
 
@@ -1648,15 +2356,13 @@ Tax: {{ 7 | match_tax }}";
         TextAssert.AreEqual("42-42-42-42", result);
     }
     [Fact]
-    public void TestNestedLoopLimit()
+    public void NestedLoopsShouldUseCumulativeLoopLimit()
     {
-        // Test that nested loops properly enforce LoopLimit per loop level
         var context = new TemplateContext
         {
             LoopLimit = 2
         };
 
-        // Create a template with nested loops where inner loop exceeds the limit
         var template = Template.Parse(@"{{
 for i in 1..2
   for j in 1..3
@@ -1665,21 +2371,18 @@ for i in 1..2
 end
 }}");
 
-        // This should throw because the inner loop has 3 iterations, exceeding limit of 2
         var exception = AssertThrows<ScriptRuntimeException>(() => template.Render(context));
         Assert.Contains("LoopLimit `2`", exception.Message);
     }
 
     [Fact]
-    public void TestNestedLoopLimitSimple()
+    public void NestedLoopWorkShouldCountTowardOuterLimit()
     {
-        // Simple test to verify the fix works
         var context = new TemplateContext
         {
             LoopLimit = 3
         };
 
-        // Create a template where inner loop exceeds limit
         var template = Template.Parse(@"{{
 for i in 1..4
   for j in 1..2
@@ -1688,21 +2391,18 @@ for i in 1..4
 end
 }}");
 
-        // This should throw because inner loop has 4 iterations > limit of 3
         var exception = AssertThrows<ScriptRuntimeException>(() => template.Render(context));
         Assert.Contains("LoopLimit `3`", exception.Message);
     }
 
     [Fact]
-    public void TestNestedLoopLimitInnerLoopExceeds()
+    public void NestedLoopAggregateShouldExceedLimit()
     {
-        // Test that inner loop properly enforces LoopLimit
         var context = new TemplateContext
         {
             LoopLimit = 8
         };
 
-        // Create a template where the inner loop alone exceeds the limit
         var template = Template.Parse(@"{{
 for i in 1..2
   for j in 1..6
@@ -1711,21 +2411,18 @@ for i in 1..2
 end
 }}");
 
-        // This should throw because the inner loop has 6 iterations, exceeding limit of 4
         var exception = AssertThrows<ScriptRuntimeException>(() => template.Render(context));
         Assert.Contains("Exceeding number of iteration limit `8` for loop statement", exception.Message);
     }
 
     [Fact]
-    public void TestNestedLoopLimitWithinBounds()
+    public void NestedLoopAggregateWithinLimitShouldRender()
     {
-        // Test that nested loops work correctly when within limits
         var context = new TemplateContext
         {
             LoopLimit = 14
         };
 
-        // Create a template with nested loops that should NOT exceed the limit
         var template = Template.Parse(@"{{
 for i in 1..2
   for j in 1..6
@@ -1739,15 +2436,13 @@ end
     }
 
     [Fact]
-    public void TestTripleNestedLoopLimit()
+    public void TripleNestedLoopsShouldUseCumulativeLoopLimit()
     {
-        // Test that triple nested loops properly enforce LoopLimit per loop level
         var context = new TemplateContext
         {
             LoopLimit = 8
         };
 
-        // Create a template with triple nested loops where innermost loop exceeds the limit
         var template = Template.Parse(@"{{
 for i in 1..2
   for j in 1..2
@@ -1758,21 +2453,18 @@ for i in 1..2
 end
 }}");
 
-        // This should throw because the innermost loop has 3 iterations, exceeding limit of 8
         var exception = AssertThrows<ScriptRuntimeException>(() => template.Render(context));
         Assert.Contains("Exceeding number of iteration limit `8` for loop statement", exception.Message);
     }
 
     [Fact]
-    public void TestNestedLoopLimitIndependentCounters()
+    public void NestedLoopsShouldNotUseIndependentCounters()
     {
-        // Test that each loop level has independent counters
         var context = new TemplateContext
         {
             LoopLimit = 3
         };
 
-        // Create a template where outer loop is within limit but inner loop exceeds
         var template = Template.Parse(@"{{
 for i in 1..2
   for j in 1..5
@@ -1781,7 +2473,6 @@ for i in 1..2
 end
 }}");
 
-        // This should throw on the inner loop (5 iterations > 3 limit)
         var exception = AssertThrows<ScriptRuntimeException>(() => template.Render(context));
         Assert.Contains("LoopLimit `3`", exception.Message);
     }
@@ -1891,6 +2582,27 @@ end
         public string PropertyC { get; set; }
     }
 
+    private class ObjectWithRestrictedSetters
+    {
+        public string PublicField = "public";
+
+        public readonly string ReadOnlyField = "readonly";
+
+        public string PublicValue { get; set; } = "public";
+
+        public string PrivateSetValue { get; private set; } = "private";
+
+        public string InternalSetValue { get; internal set; } = "internal";
+
+        public string InitOnlyValue { get; init; } = "init";
+
+        public string this[string key]
+        {
+            get => "indexer";
+            private set { }
+        }
+    }
+
     private class MyStaticObject
     {
         static MyStaticObject()
@@ -1924,6 +2636,67 @@ end
         {
             return "yoyo2 " + text;
         }
+    }
+
+    private sealed class ContextTrackingScriptObject : ScriptObject
+    {
+        public TemplateContext LastContext { get; private set; }
+        public TemplateContext LastGetContext { get; private set; }
+        public TemplateContext LastSetContext { get; private set; }
+
+        public override bool TryGetValue(TemplateContext context, SourceSpan span, string member, out object value)
+        {
+            LastContext = context;
+            LastGetContext = context;
+            return base.TryGetValue(context, span, member, out value);
+        }
+
+        public override bool TrySetValue(TemplateContext context, SourceSpan span, string member, object value, bool readOnly)
+        {
+            LastContext = context;
+            LastSetContext = context;
+            return base.TrySetValue(context, span, member, value, readOnly);
+        }
+    }
+
+    private sealed class CustomGlobalVariable : ScriptVariable
+    {
+        public CustomGlobalVariable(string name) : base(name, ScriptVariableScope.Global)
+        {
+        }
+    }
+
+    private sealed class ContextlessScriptObject : IScriptObject
+    {
+        private readonly ScriptObject _store = new ScriptObject();
+
+        public int Count => _store.Count;
+        public bool IsReadOnly { get => _store.IsReadOnly; set => _store.IsReadOnly = value; }
+        public IEnumerable<string> GetMembers() => _store.GetMembers();
+        public bool Contains(string member) => _store.Contains(member);
+        public bool CanWrite(string member) => _store.CanWrite(member);
+        public bool Remove(string member) => _store.Remove(member);
+        public void SetReadOnly(string member, bool readOnly) => _store.SetReadOnly(member, readOnly);
+        public IScriptObject Clone(bool deep) => _store.Clone(deep);
+
+        public bool TryGetValue(TemplateContext context, SourceSpan span, string member, out object value)
+        {
+            if (context is not null) throw new InvalidOperationException("Expected contextless access.");
+            return _store.TryGetValue(context, span, member, out value);
+        }
+
+        public bool TrySetValue(TemplateContext context, SourceSpan span, string member, object value, bool readOnly)
+        {
+            if (context is not null) throw new InvalidOperationException("Expected contextless access.");
+            return _store.TrySetValue(context, span, member, value, readOnly);
+        }
+    }
+
+    private sealed class ContextlessImportModel
+    {
+        public string Field = "field value";
+        public string Property => "property value";
+        public static string Method() => "method value";
     }
 
     public class ScriptObjectWithNullable : ScriptObject

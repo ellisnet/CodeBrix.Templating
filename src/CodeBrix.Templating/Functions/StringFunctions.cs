@@ -994,6 +994,7 @@ class StringFunctions : ScriptObject
     /// </remarks>
     public static string Truncatewords(string text, int count, string ellipsis = null)
     {
+        ellipsis = ellipsis ?? "...";
         if (string.IsNullOrEmpty(text))
         {
             return string.Empty;
@@ -1018,7 +1019,7 @@ class StringFunctions : ScriptObject
             isFirstWord = false;
             count--;
         }
-        builder.Append("...");
+        builder.Append(ellipsis);
         var result = builder.ToString();
         ReleaseBuilder(builder);
         return result;

@@ -16,7 +16,7 @@ https://github.com/ellisnet/CodeBrix.Templating/issues
 
 ================================================================================
 
-1.  Scriban v7.1.0 (https://github.com/scriban/scriban)
+1.  Scriban v7.5.0 (https://github.com/scriban/scriban)
 
     Copyright (c) Alexandre Mutel. All rights reserved.
 

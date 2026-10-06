@@ -33,6 +33,7 @@ partial class TemplateContext
     private FastStack<ScriptObject> _availableStores;
     internal FastStack<ScriptBlockStatement> BlockDelegates;
     private FastStack<VariableContext> _globalContexts;
+    private FastStack<VariableContext> _functionContexts;
     private FastStack<CultureInfo> _cultures;
     private readonly Dictionary<Type, IListAccessor> _listAccessors;
     private FastStack<ScriptLoopStatementBase> _loops;
@@ -45,9 +46,11 @@ partial class TemplateContext
     private FastStack<object> _caseValues;
     private int _callDepth;
     private bool _isFunctionCallDisabled;
-    private int _loopStep;
+    private int _loopDepth;
+    private long _loopStep;
     private int _getOrSetValueLevel;
     private FastStack<VariableContext> _availableGlobalContexts;
+    private FastStack<VariableContext> _availableFunctionContexts;
     private FastStack<VariableContext> _availableLocalContexts;
     private FastStack<ScriptPipeArguments> _availablePipeArguments;
     private FastStack<ScriptPipeArguments> _pipeArguments;
@@ -157,7 +160,9 @@ partial class TemplateContext
         _outputs.Push(_output);
 
         _globalContexts = new FastStack<VariableContext>(4);
+        _functionContexts = new FastStack<VariableContext>(4);
         _availableGlobalContexts = new FastStack<VariableContext>(4);
+        _availableFunctionContexts = new FastStack<VariableContext>(4);
         _availableLocalContexts = new FastStack<VariableContext>(4);
         _localContexts = new FastStack<VariableContext>(4);
         _availableStores = new FastStack<ScriptObject>(4);
@@ -229,9 +234,47 @@ partial class TemplateContext
     }
 
     /// <summary>
-    /// Gets or sets the buffer limit in characters for a ToString in a list/string. Default is 1048576 (1 MB).
+    /// Gets or sets the string conversion buffer limit in UTF-16 characters. Default is 1048576 characters.
+    /// A value less than or equal to zero disables the limit.
     /// </summary>
+    /// <remarks>
+    /// Controls individual <see cref="ObjectToString"/> conversions and allocation guards in string-producing operations.
+    /// Also limits cumulative rendered output unless <see cref="OutputLimit"/> is explicitly set.
+    /// Conversion truncation is controlled by <see cref="OnStringLimit"/>; allocation guards always throw.
+    /// </remarks>
     public int LimitToString { get; set; }
+
+    /// <summary>
+    /// Gets or sets the cumulative rendered output limit in UTF-16 characters.
+    /// Default is <c>null</c>, which uses <see cref="LimitToString"/> for backward compatibility.
+    /// Set to a positive value for an independent limit, or to zero to disable only the output limit.
+    /// </summary>
+    /// <remarks>
+    /// Values less than or equal to zero disable the limit. The budget is reset for each top-level render
+    /// and is shared by nested renders and temporary outputs (such as captures).
+    /// The truncation ellipsis is not included in the limit. See <see cref="OnOutputLimit"/>.
+    /// </remarks>
+    public int? OutputLimit { get; set; }
+
+    /// <summary>
+    /// Gets or sets the behavior when an <see cref="ObjectToString"/> conversion reaches <see cref="LimitToString"/>.
+    /// Default is <see cref="ScriptLimitBehavior.Truncate"/>.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ScriptLimitBehavior.Throw"/> raises a <see cref="ScriptRuntimeException"/> instead of appending
+    /// an ellipsis. This does not change allocation guards in string-producing operations, which always throw.
+    /// </remarks>
+    public ScriptLimitBehavior OnStringLimit { get; set; }
+
+    /// <summary>
+    /// Gets or sets the behavior when a write would exceed the effective <see cref="OutputLimit"/>.
+    /// Default is <see cref="ScriptLimitBehavior.Truncate"/>.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ScriptLimitBehavior.Throw"/> raises a <see cref="ScriptRuntimeException"/> before writing the
+    /// overflowing chunk. Previously written output is not rolled back.
+    /// </remarks>
+    public ScriptLimitBehavior OnOutputLimit { get; set; }
 
     /// <summary>
     /// Gets or sets the maximum recursion depth while traversing an object graph during the ToString operation.  Default is 20.
@@ -264,17 +307,21 @@ partial class TemplateContext
     public LexerOptions TemplateLoaderLexerOptions { get; set; }
 
     /// <summary>
-    /// A global settings used to rename property names of exposed .NET objects.
+    /// A global setting used to rename reflected field/property names of exposed .NET objects.
+    /// This does not rename dictionary keys or <see cref="ScriptObject"/> entries.
     /// </summary>
     public MemberRenamerDelegate MemberRenamer { get; set; }
 
     /// <summary>
-    /// A global settings used to filter field/property names of exposed .NET objects.
+    /// A global setting used to filter reflected field/property names of exposed .NET objects.
+    /// This does not filter dictionary keys or <see cref="ScriptObject"/> entries and is not a security boundary for sensitive object graphs.
+    /// For untrusted templates, prefer pushing explicit, sanitized <see cref="ScriptObject"/> / <see cref="ScriptArray"/> models instead of exposing .NET objects directly.
     /// </summary>
     public MemberFilterDelegate MemberFilter { get; set; }
 
     /// <summary>
-    /// A loop limit that can be used at runtime to limit the number of loops. Default is 1000.
+    /// A loop limit that caps cumulative iterations across each dynamically nested iteration tree. Default is 1000.
+    /// Language loops and internal iteration share the same budget until the outermost iteration exits.
     /// Set to 0 to disable checking loop limit.
     /// </summary>
     public int LoopLimit { get; set; }
@@ -707,6 +754,20 @@ partial class TemplateContext
         _hasOutputLimitEllipsis = false;
     }
 
+    internal void EnterRender()
+    {
+        if (_renderDepth == 0)
+        {
+            ResetOutputLimitTracking();
+        }
+        _renderDepth++;
+    }
+
+    internal void ExitRender()
+    {
+        _renderDepth--;
+    }
+
     private bool WriteOutputChunk(string text, int startIndex, int count)
     {
         if (count <= 0)
@@ -732,18 +793,23 @@ partial class TemplateContext
 
     private int GetAllowedOutputCount(int requestedCount)
     {
-        if (LimitToString <= 0)
+        var outputLimit = OutputLimit ?? LimitToString;
+        if (outputLimit <= 0)
         {
             return requestedCount;
         }
 
-        var remaining = LimitToString - _currentOutputLength;
+        var remaining = outputLimit - _currentOutputLength;
+        if (requestedCount > remaining && OnOutputLimit == ScriptLimitBehavior.Throw)
+        {
+            throw new ScriptRuntimeException(CurrentSpan, $"Rendered output exceeds OutputLimit `{outputLimit}`.");
+        }
         if (remaining <= 0)
         {
             return 0;
         }
 
-        return Math.Min(requestedCount, remaining);
+        return (int)Math.Min(requestedCount, remaining);
     }
 
     private void WriteOutputLimitEllipsis()
@@ -1082,6 +1148,7 @@ partial class TemplateContext
         _loops.Push(loop);
         PushVariableScope(VariableScope.Loop);
         OnEnterLoop(loop);
+        EnterLoopScopeCore();
     }
 
     /// <summary>
@@ -1105,10 +1172,7 @@ partial class TemplateContext
         {
             PopVariableScope(VariableScope.Loop);
             _loops.Pop();
-            if (!IsInLoop)
-            {
-                _loopStep = 0;
-            }
+            ExitLoopScopeCore();
         }
     }
 
@@ -1126,16 +1190,52 @@ partial class TemplateContext
         Queryable
     }
 
-    internal void StepLoop(SourceSpan span, ref int loopStep, LoopType loopType = LoopType.Default)
+    internal LoopScope EnterLoopScope()
     {
+        EnterLoopScopeCore();
+        return new LoopScope(this);
+    }
+
+    private void EnterLoopScopeCore()
+    {
+        if (_loopDepth == 0)
+        {
+            _loopStep = 0;
+        }
+        _loopDepth++;
+    }
+
+    private void ExitLoopScopeCore()
+    {
+        Debug.Assert(_loopDepth > 0);
+        _loopDepth--;
+        if (_loopDepth == 0)
+        {
+            _loopStep = 0;
+        }
+    }
+
+    internal void StepLoop(SourceSpan span, LoopType loopType = LoopType.Default)
+    {
+        StepLoop(span, 1, loopType);
+    }
+
+    internal void StepLoop(SourceSpan span, long stepCount, LoopType loopType = LoopType.Default)
+    {
+        Debug.Assert(_loopDepth > 0);
         CheckAbort();
 
-        loopStep++;
+        if (stepCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(stepCount));
+        }
+
+        _loopStep = long.MaxValue - _loopStep < stepCount ? long.MaxValue : _loopStep + stepCount;
         var loopLimit = loopType == LoopType.Queryable
             ? LoopLimitQueryable.GetValueOrDefault(LoopLimit)
             : LoopLimit;
 
-        if (loopLimit != 0 && loopStep > loopLimit)
+        if (loopLimit != 0 && _loopStep > loopLimit)
         {
             throw new ScriptRuntimeException(span, $"Exceeding number of iteration limit `{loopLimit}` for internal iteration.");
         }
@@ -1144,6 +1244,7 @@ partial class TemplateContext
     internal bool StepLoop(ScriptLoopStatementBase loop, LoopType loopType = LoopType.Default)
     {
         Debug.Assert(_loops.Count > 0);
+        Debug.Assert(_loopDepth > 0);
 
         _loopStep++;
 
@@ -1168,6 +1269,21 @@ partial class TemplateContext
             throw new ScriptRuntimeException(currentLoopStatement.Span, $"Exceeding number of iteration limit `{loopLimit}` for loop statement."); // unit test: 215-for-statement-error1.txt
         }
         return OnStepLoop(loop);
+    }
+
+    internal readonly struct LoopScope : IDisposable
+    {
+        private readonly TemplateContext _context;
+
+        public LoopScope(TemplateContext context)
+        {
+            _context = context;
+        }
+
+        public void Dispose()
+        {
+            _context.ExitLoopScopeCore();
+        }
     }
 
     /// <summary>

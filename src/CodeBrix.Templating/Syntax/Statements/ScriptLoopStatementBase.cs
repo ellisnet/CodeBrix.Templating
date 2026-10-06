@@ -181,7 +181,7 @@ abstract partial class ScriptLoopStatementBase : ScriptStatement
         public virtual bool TryGetValue(TemplateContext context, SourceSpan span, string member, out object value)
         {
             value = null;
-            var isLiquid = context.IsLiquid;
+            var isLiquid = context?.IsLiquid == true;
             switch (member)
             {
                 case "index":

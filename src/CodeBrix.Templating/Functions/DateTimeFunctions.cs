@@ -57,7 +57,7 @@ partial class DateTimeFunctions : ScriptObject, IScriptCustomFunction, IScriptFu
         { 'a', ((dateTime, cultureInfo) => dateTime.ToString("ddd", cultureInfo), "ddd") },
         { 'A', ((dateTime, cultureInfo) => dateTime.ToString("dddd", cultureInfo), "dddd") },
         { 'b', ((dateTime, cultureInfo) => dateTime.ToString("MMM", cultureInfo), "MMM") },
-        { 'B', ((dateTime, cultureInfo) => dateTime.ToString("MMMM", cultureInfo), "MMM") },
+        { 'B', ((dateTime, cultureInfo) => dateTime.ToString("MMMM", cultureInfo), "MMMM") },
         { 'c', ((dateTime, cultureInfo) => dateTime.ToString("ddd MMM dd HH:mm:ss yyyy", cultureInfo), "ddd MMM dd HH:mm:ss yyyy") },
         { 'C', ((dateTime, cultureInfo) => (dateTime.Year / 100).ToString("D2", cultureInfo), null) },
         { 'd', ((dateTime, cultureInfo) => dateTime.ToString("dd", cultureInfo), "dd") },
@@ -254,6 +254,21 @@ partial class DateTimeFunctions : ScriptObject, IScriptCustomFunction, IScriptFu
             return null;
         }
 
+        // Parsing uses one culture for the entire pattern. Resolve it before expanding
+        // culture-specific patterns, even when %g appears after %x or %X.
+        for (int i = 0; i < pattern.Length - 1; i++)
+        {
+            if (pattern[i] == '%')
+            {
+                i++;
+                if (pattern[i] == 'g')
+                {
+                    cultureOverride = CultureInfo.InvariantCulture;
+                    break;
+                }
+            }
+        }
+
         var builder = new StringBuilder();
         for (int i = 0; i < pattern.Length; i++)
         {
@@ -263,10 +278,9 @@ partial class DateTimeFunctions : ScriptObject, IScriptCustomFunction, IScriptFu
                 i++;
                 var format = pattern[i];
 
-                // Switch to invariant culture
+                // The invariant culture override was resolved before expanding patterns.
                 if (format == 'g')
                 {
-                    cultureOverride = CultureInfo.InvariantCulture;
                     continue;
                 }
 
@@ -276,7 +290,7 @@ partial class DateTimeFunctions : ScriptObject, IScriptCustomFunction, IScriptFu
                     {
                         throw new ArgumentException($"The pattern %{format} is not supported for the parse method", nameof(pattern));
                     }
-                    builder.Append(formatterPair.Item2);
+                    builder.Append(ExpandStandardFormat(formatterPair.Item2, cultureOverride));
                 }
                 else
                 {
@@ -291,6 +305,17 @@ partial class DateTimeFunctions : ScriptObject, IScriptCustomFunction, IScriptFu
         }
         return builder.ToString();
     }
+
+    /// <summary>
+    /// Standard format specifiers only keep their meaning when they are the entire format string, so they are
+    /// expanded to the equivalent custom pattern before being combined with other specifiers.
+    /// </summary>
+    private static string ExpandStandardFormat(string format, CultureInfo culture) => format switch
+    {
+        "d" => culture.DateTimeFormat.ShortDatePattern,
+        "T" => culture.DateTimeFormat.LongTimePattern,
+        _ => format,
+    };
 
     private static DateTime? ParseDateTime(TemplateContext context, string text, string pattern = null, string culture = null)
     {
@@ -340,6 +365,11 @@ partial class DateTimeFunctions : ScriptObject, IScriptCustomFunction, IScriptFu
 
     /// <summary>
     /// Parses the specified input string to a date object.
+    /// The patterns `%x` and `%X` use the culture's short date and long time patterns and can be combined.
+    /// The modifier `%g` selects invariant culture for the entire input pattern, regardless of its position.
+    /// Inputs with `Z` or an explicit UTC offset are converted to the host's local time, which can change the calendar date.
+    /// For example, `2021/11/30 09:50:23Z` and `20/01/2022 08:32:48 +00:00` (with culture `en-GB`) represent UTC instants,
+    /// but their rendered dates depend on the host's time zone. The examples below omit offsets so their dates do not depend on the time zone.
     /// </summary>
     /// <param name="context">The template context.</param>
     /// <param name="text">A text representing a date.</param>
@@ -350,8 +380,8 @@ partial class DateTimeFunctions : ScriptObject, IScriptCustomFunction, IScriptFu
     /// ```scriban-html
     /// {{ date.parse '2016/01/05' }}
     /// {{ date.parse '2018--06--17' '%Y--%m--%d' }}
-    /// {{ date.parse '2021/11/30 09:50:23Z' }}
-    /// {{ date.parse '20/01/2022 08:32:48 +00:00' culture:'en-GB' }}
+    /// {{ date.parse '2021/11/30 09:50:23' }}
+    /// {{ date.parse '20/01/2022 08:32:48' culture:'en-GB' }}
     /// ```
     /// ```html
     /// 05 Jan 2016
@@ -396,14 +426,8 @@ partial class DateTimeFunctions : ScriptObject, IScriptCustomFunction, IScriptFu
         {
             return null;
         }
-        if (output_pattern is null)
-        {
-            return datetime.Value.ToString(DefaultFormat);
-        }
-        var defaultOutputCulture = (output_culture is not null ? CultureInfo.GetCultureInfo(output_culture) : context.CurrentCulture) ?? context.CurrentCulture;
-        var outputCustomFormat = ParseCustomFormat(defaultOutputCulture, output_pattern, out var outputCulture);
-
-        return datetime.Value.ToString(outputCustomFormat, outputCulture);
+        var outputCulture = (output_culture is not null ? CultureInfo.GetCultureInfo(output_culture) : context.CurrentCulture) ?? context.CurrentCulture;
+        return FormatDateTime(datetime.Value, output_pattern ?? DefaultFormat, outputCulture);
     }
     /// <summary><c>Clone</c>.</summary>
     public override IScriptObject Clone(bool deep)
@@ -502,6 +526,11 @@ partial class DateTimeFunctions : ScriptObject, IScriptCustomFunction, IScriptFu
             pattern = "%g " + Format;
         }
 
+        return FormatDateTime(datetime.Value, pattern, culture);
+    }
+
+    private static string FormatDateTime(DateTime datetime, string pattern, CultureInfo culture)
+    {
         var builder = new StringBuilder();
 
         for (int i = 0; i < pattern.Length; i++)
@@ -522,7 +551,7 @@ partial class DateTimeFunctions : ScriptObject, IScriptCustomFunction, IScriptFu
                 if (Formats.TryGetValue(format, out var formatterPair))
                 {
                     var formatter = formatterPair.Item1;
-                    builder.Append(formatter.Invoke(datetime.Value, culture));
+                    builder.Append(formatter.Invoke(datetime, culture));
                 }
                 else
                 {
@@ -537,7 +566,6 @@ partial class DateTimeFunctions : ScriptObject, IScriptCustomFunction, IScriptFu
         }
 
         return builder.ToString();
-
     }
     /// <summary><c>Invoke</c>.</summary>
     public virtual object Invoke(TemplateContext context, ScriptNode callerContext, ScriptArray arguments, ScriptBlockStatement blockStatement)

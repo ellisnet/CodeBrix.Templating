@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -252,32 +253,18 @@ class ObjectFunctions : ScriptObject
 #pragma warning restore CS0108
     {
         if (value is null) return new ScriptArray();
-        if (value is IDictionary dict) return new ScriptArray(dict.Keys);
-        if (value is IDictionary<string, object> dictStringObject) return new ScriptArray(dictStringObject.Keys);
-        if (value is IScriptObject scriptObj) return new ScriptArray(scriptObj.GetMembers());
+        if (value is IDictionary dict) return ToScriptArray(context, context.CurrentSpan, dict.Keys);
+        if (value is IDictionary<string, object> dictStringObject) return ToScriptArray(context, context.CurrentSpan, dictStringObject.Keys);
+        if (value is IScriptObject scriptObj) return ToScriptArray(context, context.CurrentSpan, scriptObj.GetMembers());
         // Don't try to return members of a custom function
         if (value is IScriptCustomFunction) return new ScriptArray();
 
         var accessor = context.GetMemberAccessor(value);
-        return new ScriptArray(accessor.GetMembers(context, context.CurrentSpan, value));
+        return ToScriptArray(context, context.CurrentSpan, accessor.GetMembers(context, context.CurrentSpan, value));
     }
 
-    /// <summary>
-    /// Returns the size of the input object.
-    /// - If the input object is a string, it will return the length
-    /// - If the input is a list, it will return the number of elements
-    /// - If the input is an object, it will return the number of members
-    /// </summary>
-    /// <param name="value">The input object.</param>
-    /// <returns>The size of the input object.</returns>
-    /// <remarks>
-    /// ```scriban-html
-    /// {{ [1, 2, 3] | object.size }}
-    /// ```
-    /// ```html
-    /// 3
-    /// ```
-    /// </remarks>
+    /// <summary><c>Size</c>.</summary>
+    [ScriptMemberIgnore]
     public static int Size(object value)
     {
         if (value is null)
@@ -293,6 +280,45 @@ class ObjectFunctions : ScriptObject
         if (value is IEnumerable)
         {
             return ArrayFunctions.Size((IEnumerable) value);
+        }
+
+        // Should we throw an exception?
+        return 0;
+    }
+
+    /// <summary>
+    /// Returns the size of the input object.
+    /// - If the input object is a string, it will return the length
+    /// - If the input is a list, it will return the number of elements
+    /// - If the input is an object, it will return the number of members
+    /// </summary>
+    /// <param name="context">The template context</param>
+    /// <param name="span">The source span</param>
+    /// <param name="value">The input object.</param>
+    /// <returns>The size of the input object.</returns>
+    /// <remarks>
+    /// ```scriban-html
+    /// {{ [1, 2, 3] | object.size }}
+    /// ```
+    /// ```html
+    /// 3
+    /// ```
+    /// </remarks>
+    public static int Size(TemplateContext context, SourceSpan span, object value)
+    {
+        if (value is null)
+        {
+            return 0;
+        }
+
+        if (value is string)
+        {
+            return StringFunctions.Size((string) value);
+        }
+
+        if (value is IEnumerable)
+        {
+            return ArrayFunctions.Size(context, span, (IEnumerable) value);
         }
 
         // Should we throw an exception?
@@ -433,11 +459,13 @@ class ObjectFunctions : ScriptObject
 #pragma warning restore CS0108
     {
         if (value is null) return new ScriptArray();
+        using var loopScope = context.EnterLoopScope();
         if (value is IDictionary<string, object> dictStringObject)
         {
             var values = new ScriptArray();
             foreach (var memberValue in dictStringObject.Values)
             {
+                context.StepLoop(context.CurrentSpan);
                 values.Add(memberValue);
             }
             return values;
@@ -449,10 +477,30 @@ class ObjectFunctions : ScriptObject
         var scriptArray = new ScriptArray();
         foreach(var member in accessor.GetMembers(context, context.CurrentSpan, value))
         {
+            context.StepLoop(context.CurrentSpan);
             _ = accessor.TryGetValue(context, context.CurrentSpan, value, member, out var memberValue);
             scriptArray.Add(memberValue);
         }
         return scriptArray;
+    }
+
+    private static ScriptArray ToScriptArray(TemplateContext context, SourceSpan span, IEnumerable values)
+    {
+        var result = new ScriptArray();
+        using var loopScope = context.EnterLoopScope();
+        var loopType = GetLoopType(values);
+        foreach (var value in values)
+        {
+            context.StepLoop(span, loopType);
+            result.Add(value);
+        }
+
+        return result;
+    }
+
+    private static TemplateContext.LoopType GetLoopType(IEnumerable values)
+    {
+        return values is IQueryable ? TemplateContext.LoopType.Queryable : TemplateContext.LoopType.Default;
     }
 
     /// <summary>
@@ -495,6 +543,7 @@ class ObjectFunctions : ScriptObject
     /// true
     /// null
     /// ```
+    /// `object.to_json` serializes primitive/scalar values and values implementing `IFormattable` directly with System.Text.Json. For these values, serialization does not use `TemplateContext.MemberFilter` or `TemplateContext.MemberRenamer`. Do not expose objects containing data that templates must not access; prefer explicit `ScriptObject` / `ScriptArray` models for untrusted templates.
     /// </remarks>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Serializing known primitive types, strings, and IFormattable values.")]
     [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Serializing known primitive types, strings, and IFormattable values.")]
@@ -509,6 +558,7 @@ class ObjectFunctions : ScriptObject
         using var stream = new MemoryStream();
         var writer = new Utf8JsonWriter(stream, writerOptions);
         var path = new HashSet<object>(ReferenceEqualityComparer.Default);
+        using var loopScope = context.EnterLoopScope();
 
         WriteValue(context, writer, value, 0, path);
         writer.Flush();
@@ -566,6 +616,7 @@ class ObjectFunctions : ScriptObject
                     {
                         foreach (var x in list)
                         {
+                            context.StepLoop(context.CurrentSpan);
                             WriteValue(context, writer, x, depth, path);
                         }
                     }
@@ -577,6 +628,7 @@ class ObjectFunctions : ScriptObject
                     var accessor = context.GetMemberAccessor(value);
                     foreach (var member in accessor.GetMembers(context, context.CurrentSpan, value))
                     {
+                        context.StepLoop(context.CurrentSpan);
                         if (accessor.TryGetValue(context, context.CurrentSpan, value, member, out var memberValue))
                         {
                             writer.WritePropertyName(member);

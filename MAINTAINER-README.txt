@@ -74,6 +74,9 @@ REPOSITORY LAYOUT
                                   Math, DateTime, TimeSpan, Object, Html,
                                   Regex, Include, IncludeJoin, Builtin,
                                   LiquidBuiltins)
+        Compatibility/            netstandard2.0-only internal shims
+                                  (IsExternalInit, nullable and trimming
+                                  attributes); excluded from net10.0
         Helpers/                  low-level utilities. BoxHelper, FastStack,
                                   InlineList and ThrowHelper are internal;
                                   CharHelper and ReflectionHelper are public
@@ -123,9 +126,36 @@ BUILDING
     dotnet restore CodeBrix.Templating.slnx
     dotnet build CodeBrix.Templating.slnx
 
-The library targets net10.0 only. GenerateDocumentationFile is enabled, so a
+The library multi-targets netstandard2.0;net10.0 (LangVersion latest, so the
+same modern C# compiles for both). GenerateDocumentationFile is enabled, so a
 missing XML doc comment on a public or protected-on-unsealed member is a
-CS1591 warning -- fix it at the source rather than suppressing it.
+CS1591 warning -- fix it at the source rather than suppressing it. Both
+targets must build with zero warnings.
+
+The netstandard2.0 target exists so the library can be loaded by Roslyn
+source generators / analyzers (Visual Studio runs the compiler on .NET
+Framework). Its rules:
+
+    * Dependencies are Microsoft-maintained packages ONLY, referenced in a
+      netstandard2.0-conditioned ItemGroup in the csproj: Microsoft.CSharp
+      (the `await (dynamic)` in DynamicCustomFunction), System.Text.Json and
+      System.Threading.Tasks.Extensions (ValueTask). The net10.0 target has NO
+      NuGet dependencies -- keep it that way.
+    * NO PolySharp (or any other polyfill package). The attributes and marker
+      types netstandard2.0 lacks are hand-written internal shims in
+      src/CodeBrix.Templating/Compatibility/ (IsExternalInit, the nullable
+      attributes, the trimming/AOT attributes). The csproj removes that folder
+      from every target except netstandard2.0. If new upstream code needs
+      another missing type, add a shim there.
+    * Do not use APIs that exist only on modern .NET in shared code; if one is
+      unavoidable, guard it with #if NET (or NETSTANDARD2_0 for the fallback).
+    * The test project stays net10.0 only, by decision. The netstandard2.0
+      build is exercised by its real consumer: the vendored Npgsql fork's
+      source generator (Npgsql.SourceGenerators).
+    * The assembly is NOT strong-named (deferred to a future CodeBrix-wide
+      effort). A strong-named consumer must not sign the project that
+      references it (CS8002); the Npgsql fork turns off SignAssembly on its
+      generator project, which is never shipped.
 
 GeneratePackageOnBuild is true for the library project, so every successful
 build of src/CodeBrix.Templating also produces a .nupkg in its bin folder.
@@ -209,8 +239,11 @@ at https://github.com/ellisnet/CodeBrix.Templating.
 PROVENANCE AND VENDORED SOURCES
 ===============================
 
-CodeBrix.Templating is a port of Scriban 7.1.0 (BSD-2-Clause), the same
-license this project uses.
+CodeBrix.Templating is a port of Scriban (BSD-2-Clause), the same license
+this project uses. It was originally ported from Scriban 7.1.0 and has since
+been brought in line with Scriban 7.5.0: every library code change between
+the 7.1.0 and 7.5.0 tags, plus the upstream tests that came with them, has
+been applied. Docs-only, CI, dependency-bump and benchmark commits were not.
 
     * Every ported .cs file keeps its upstream copyright header verbatim:
         // Copyright (c) Alexandre Mutel. All rights reserved.
@@ -224,6 +257,23 @@ license this project uses.
     * Conditional compilation symbols inherited from upstream (for example
       SCRIBAN_NO_SYSTEM_TEXT_JSON) are left in place but are not defined by
       this build; System.Text.Json support is always compiled in.
+    * SYNCING WITH A NEWER SCRIBAN RELEASE. The port's differences from
+      upstream are almost entirely mechanical: Scriban -> CodeBrix.Templating
+      namespaces with the provenance comment, block -> file-scoped namespaces
+      (one less indent level), `#if SCRIBAN_PUBLIC public #else internal`
+      collapsed to `public`, nullable annotations (`?`, `!`, `#nullable`)
+      removed, added `/// <summary><c>Name</c>.</summary>` doc stubs, and in
+      tests NUnit -> xUnit v3 (`[Test]` -> `[Fact]`, `[TestCase]` ->
+      `[Theory]`/`[InlineData]`, `Assert.AreEqual` -> `Assert.Equal`, ...).
+      The 7.5.0 sync applied those transforms to both the old and the new
+      upstream tag and then ran a three-way `git merge-file` per file
+      (ours = this repo, base = transformed old tag, theirs = transformed new
+      tag); only a handful of hunks conflicted. Upstream's generated
+      ScribanAsync.generated.cs has no generated counterpart here -- apply
+      its changes by hand to Templating.cs / TemplatingSyntax.cs /
+      TemplatingFunctions.cs / TemplatingRuntime.cs. Test fixtures under
+      TestFiles/ are byte-exact copies of upstream's (no trailing newline at
+      end of file; CRLF in a Windows checkout).
     * Parts of the Liquid test suite were adapted from DotLiquid
       (Apache-2.0 / Ms-PL dual licence). See THIRD-PARTY-NOTICES.txt and
       tests/CodeBrix.Templating.Tests/LiquidTests/dotliquid-license.txt.

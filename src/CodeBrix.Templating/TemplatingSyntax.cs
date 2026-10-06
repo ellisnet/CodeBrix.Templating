@@ -572,14 +572,8 @@ public
         ScriptArray arguments, ScriptBlockStatement blockStatement)
     {
         bool hasParams = HasParameters;
-        if (hasParams)
-        {
-            context.PushGlobal(new ScriptObject());
-        }
-        else
-        {
-            context.PushLocal();
-        }
+        var functionVariables = hasParams ? new ScriptObject() : null;
+        context.PushFunction(functionVariables, !IsAnonymous);
 
         try
         {
@@ -591,8 +585,7 @@ public
             context.SetValue(ScriptVariable.Arguments, arguments, true);
             if (hasParams)
             {
-                var glob = context.CurrentGlobal;
-                if (glob is null)
+                if (functionVariables is null)
                 {
                     throw new ScriptRuntimeException(Span, "Missing global scope for function invocation.");
                 }
@@ -612,7 +605,7 @@ public
                         throw new ScriptRuntimeException(param.Span, "Missing function parameter name.");
                     }
 
-                    glob.SetValue(parameterName, arguments[i], false);
+                    functionVariables.SetValue(parameterName, arguments[i], false);
                 }
             }
 
@@ -627,14 +620,7 @@ public
         }
         finally
         {
-            if (hasParams)
-            {
-                context.PopGlobal();
-            }
-            else
-            {
-                context.PopLocal();
-            }
+            context.PopFunction();
         }
     }
 }

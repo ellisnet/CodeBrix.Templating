@@ -203,9 +203,11 @@ partial class MathFunctions : ScriptObject
     /// ```scriban-html
     /// {{ 255 | math.is_number }}
     /// {{ "yo" | math.is_number }}
+    /// {{ null | math.is_number }}
     /// ```
     /// ```html
     /// true
+    /// false
     /// false
     /// ```
     /// </remarks>

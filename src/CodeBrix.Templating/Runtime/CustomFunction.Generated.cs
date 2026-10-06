@@ -1,7 +1,7 @@
 namespace CodeBrix.Templating.Runtime; //was previously: Scriban.Runtime;
 
 // ----------------------------------------------------------------------------------
-// This file was automatically generated - 03/21/2026 19:52:35 by CodeBrix.Templating.DelegateCodeGen
+// This file was automatically generated - 05/12/2026 21:42:23 by CodeBrix.Templating.DelegateCodeGen
 // DOT NOT EDIT THIS FILE MANUALLY
 // ----------------------------------------------------------------------------------
 using System;
@@ -56,13 +56,17 @@ abstract partial class DynamicCustomFunction
         AddBuiltinFunctionDelegate(typeof(CodeBrix.Templating.Functions.ArrayFunctions).GetMethod(nameof(CodeBrix.Templating.Functions.ArrayFunctions.Concat), BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { typeof(TemplateContext), typeof(SourceSpan), typeof(IEnumerable), typeof(IEnumerable) }, null), method => new FunctionIEnumerable_TemplateContext_SourceSpan_IEnumerable_IEnumerable(method));
         AddBuiltinFunctionDelegate(typeof(CodeBrix.Templating.Functions.ArrayFunctions).GetMethod(nameof(CodeBrix.Templating.Functions.ArrayFunctions.Limit), BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { typeof(TemplateContext), typeof(SourceSpan), typeof(IEnumerable), typeof(int) }, null), method => new FunctionIEnumerable_TemplateContext_SourceSpan_IEnumerable_int(method));
         AddBuiltinFunctionDelegate(typeof(CodeBrix.Templating.Functions.ArrayFunctions).GetMethod(nameof(CodeBrix.Templating.Functions.ArrayFunctions.Offset), BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { typeof(TemplateContext), typeof(SourceSpan), typeof(IEnumerable), typeof(int) }, null), method => new FunctionIEnumerable_TemplateContext_SourceSpan_IEnumerable_int(method));
+        AddBuiltinFunctionDelegate(typeof(CodeBrix.Templating.Functions.ArrayFunctions).GetMethod(nameof(CodeBrix.Templating.Functions.ArrayFunctions.InsertAt), BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { typeof(TemplateContext), typeof(SourceSpan), typeof(IEnumerable), typeof(int), typeof(object) }, null), method => new FunctionIEnumerable_TemplateContext_SourceSpan_IEnumerable_int_object(method));
+        AddBuiltinFunctionDelegate(typeof(CodeBrix.Templating.Functions.ArrayFunctions).GetMethod(nameof(CodeBrix.Templating.Functions.ArrayFunctions.Add), BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { typeof(TemplateContext), typeof(SourceSpan), typeof(IEnumerable), typeof(object) }, null), method => new FunctionIEnumerable_TemplateContext_SourceSpan_IEnumerable_object(method));
         AddBuiltinFunctionDelegate(typeof(CodeBrix.Templating.Functions.ArrayFunctions).GetMethod(nameof(CodeBrix.Templating.Functions.ArrayFunctions.Map), BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { typeof(TemplateContext), typeof(SourceSpan), typeof(object), typeof(string) }, null), method => new FunctionIEnumerable_TemplateContext_SourceSpan_object_string(method));
         AddBuiltinFunctionDelegate(typeof(CodeBrix.Templating.Functions.ArrayFunctions).GetMethod(nameof(CodeBrix.Templating.Functions.ArrayFunctions.Sort), BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { typeof(TemplateContext), typeof(SourceSpan), typeof(object), typeof(string) }, null), method => new FunctionIEnumerable_TemplateContext_SourceSpan_object_string___Opt(method));
         AddBuiltinFunctionDelegate(typeof(CodeBrix.Templating.Functions.ArrayFunctions).GetMethod(nameof(CodeBrix.Templating.Functions.ArrayFunctions.RemoveAt), BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { typeof(IList), typeof(int) }, null), method => new FunctionIList_IList_int(method));
+        AddBuiltinFunctionDelegate(typeof(CodeBrix.Templating.Functions.ArrayFunctions).GetMethod(nameof(CodeBrix.Templating.Functions.ArrayFunctions.RemoveAt), BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { typeof(TemplateContext), typeof(SourceSpan), typeof(IList), typeof(int) }, null), method => new FunctionIList_TemplateContext_SourceSpan_IList_int(method));
         AddBuiltinFunctionDelegate(typeof(CodeBrix.Templating.Functions.ArrayFunctions).GetMethod(nameof(CodeBrix.Templating.Functions.ArrayFunctions.Size), BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { typeof(IEnumerable) }, null), method => new Functionint_IEnumerable(method));
         AddBuiltinFunctionDelegate(typeof(CodeBrix.Templating.Functions.ObjectFunctions).GetMethod(nameof(CodeBrix.Templating.Functions.ObjectFunctions.Size), BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { typeof(object) }, null), method => new Functionint_object(method));
         AddBuiltinFunctionDelegate(typeof(CodeBrix.Templating.Functions.StringFunctions).GetMethod(nameof(CodeBrix.Templating.Functions.StringFunctions.Size), BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { typeof(string) }, null), method => new Functionint_string(method));
         AddBuiltinFunctionDelegate(typeof(CodeBrix.Templating.Functions.ArrayFunctions).GetMethod(nameof(CodeBrix.Templating.Functions.ArrayFunctions.Size), BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { typeof(TemplateContext), typeof(SourceSpan), typeof(IEnumerable) }, null), method => new Functionint_TemplateContext_SourceSpan_IEnumerable(method));
+        AddBuiltinFunctionDelegate(typeof(CodeBrix.Templating.Functions.ObjectFunctions).GetMethod(nameof(CodeBrix.Templating.Functions.ObjectFunctions.Size), BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { typeof(TemplateContext), typeof(SourceSpan), typeof(object) }, null), method => new Functionint_TemplateContext_SourceSpan_object(method));
         AddBuiltinFunctionDelegate(typeof(CodeBrix.Templating.Functions.ArrayFunctions).GetMethod(nameof(CodeBrix.Templating.Functions.ArrayFunctions.First), BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { typeof(IEnumerable) }, null), method => new Functionobject_IEnumerable(method));
         AddBuiltinFunctionDelegate(typeof(CodeBrix.Templating.Functions.ArrayFunctions).GetMethod(nameof(CodeBrix.Templating.Functions.ArrayFunctions.Last), BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { typeof(IEnumerable) }, null), method => new Functionobject_IEnumerable(method));
         AddBuiltinFunctionDelegate(typeof(CodeBrix.Templating.Functions.ObjectFunctions).GetMethod(nameof(CodeBrix.Templating.Functions.ObjectFunctions.Default), BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { typeof(object), typeof(object) }, null), method => new Functionobject_object_object(method));
@@ -630,6 +634,55 @@ abstract partial class DynamicCustomFunction
     }
 
     /// <summary>
+    /// Optimized custom function for: IEnumerable (TemplateContext, SourceSpan, IEnumerable, int, object)
+    /// </summary>
+    private partial class FunctionIEnumerable_TemplateContext_SourceSpan_IEnumerable_int_object : DynamicCustomFunction
+    {
+        private delegate IEnumerable InternalDelegate(TemplateContext arg0, SourceSpan arg1, IEnumerable arg2, int arg3, object arg4);
+
+        private readonly InternalDelegate _delegate;
+
+        public FunctionIEnumerable_TemplateContext_SourceSpan_IEnumerable_int_object(MethodInfo method) : base(method)
+        {
+            _delegate = (InternalDelegate)method.CreateDelegate(typeof(InternalDelegate));
+        }
+
+        public override object Invoke(TemplateContext context, ScriptNode callerContext, ScriptArray arguments, ScriptBlockStatement blockStatement)
+        {
+            var callerSpan = callerContext?.Span ?? context.CurrentSpan;
+            var arg0 = ConvertNullableReferenceArgument<IEnumerable>(context, callerSpan, arguments[0], 0);
+            var arg1 = ConvertStructArgument<int>(context, callerSpan, arguments[1], 1);
+            var arg2 = ConvertNullableReferenceArgument<object>(context, callerSpan, arguments[2], 2);
+
+            return _delegate(context, callerSpan, arg0, arg1, arg2);
+        }
+    }
+
+    /// <summary>
+    /// Optimized custom function for: IEnumerable (TemplateContext, SourceSpan, IEnumerable, object)
+    /// </summary>
+    private partial class FunctionIEnumerable_TemplateContext_SourceSpan_IEnumerable_object : DynamicCustomFunction
+    {
+        private delegate IEnumerable InternalDelegate(TemplateContext arg0, SourceSpan arg1, IEnumerable arg2, object arg3);
+
+        private readonly InternalDelegate _delegate;
+
+        public FunctionIEnumerable_TemplateContext_SourceSpan_IEnumerable_object(MethodInfo method) : base(method)
+        {
+            _delegate = (InternalDelegate)method.CreateDelegate(typeof(InternalDelegate));
+        }
+
+        public override object Invoke(TemplateContext context, ScriptNode callerContext, ScriptArray arguments, ScriptBlockStatement blockStatement)
+        {
+            var callerSpan = callerContext?.Span ?? context.CurrentSpan;
+            var arg0 = ConvertNullableReferenceArgument<IEnumerable>(context, callerSpan, arguments[0], 0);
+            var arg1 = ConvertNullableReferenceArgument<object>(context, callerSpan, arguments[1], 1);
+
+            return _delegate(context, callerSpan, arg0, arg1);
+        }
+    }
+
+    /// <summary>
     /// Optimized custom function for: IEnumerable (TemplateContext, SourceSpan, object, string)
     /// </summary>
     private partial class FunctionIEnumerable_TemplateContext_SourceSpan_object_string : DynamicCustomFunction
@@ -698,6 +751,30 @@ abstract partial class DynamicCustomFunction
             var arg1 = ConvertStructArgument<int>(context, callerSpan, arguments[1], 1);
 
             return _delegate(arg0, arg1);
+        }
+    }
+
+    /// <summary>
+    /// Optimized custom function for: IList (TemplateContext, SourceSpan, IList, int)
+    /// </summary>
+    private partial class FunctionIList_TemplateContext_SourceSpan_IList_int : DynamicCustomFunction
+    {
+        private delegate IList InternalDelegate(TemplateContext arg0, SourceSpan arg1, IList arg2, int arg3);
+
+        private readonly InternalDelegate _delegate;
+
+        public FunctionIList_TemplateContext_SourceSpan_IList_int(MethodInfo method) : base(method)
+        {
+            _delegate = (InternalDelegate)method.CreateDelegate(typeof(InternalDelegate));
+        }
+
+        public override object Invoke(TemplateContext context, ScriptNode callerContext, ScriptArray arguments, ScriptBlockStatement blockStatement)
+        {
+            var callerSpan = callerContext?.Span ?? context.CurrentSpan;
+            var arg0 = ConvertNullableReferenceArgument<IList>(context, callerSpan, arguments[0], 0);
+            var arg1 = ConvertStructArgument<int>(context, callerSpan, arguments[1], 1);
+
+            return _delegate(context, callerSpan, arg0, arg1);
         }
     }
 
@@ -788,6 +865,29 @@ abstract partial class DynamicCustomFunction
         {
             var callerSpan = callerContext?.Span ?? context.CurrentSpan;
             var arg0 = ConvertNullableReferenceArgument<IEnumerable>(context, callerSpan, arguments[0], 0);
+
+            return _delegate(context, callerSpan, arg0);
+        }
+    }
+
+    /// <summary>
+    /// Optimized custom function for: int (TemplateContext, SourceSpan, object)
+    /// </summary>
+    private partial class Functionint_TemplateContext_SourceSpan_object : DynamicCustomFunction
+    {
+        private delegate int InternalDelegate(TemplateContext arg0, SourceSpan arg1, object arg2);
+
+        private readonly InternalDelegate _delegate;
+
+        public Functionint_TemplateContext_SourceSpan_object(MethodInfo method) : base(method)
+        {
+            _delegate = (InternalDelegate)method.CreateDelegate(typeof(InternalDelegate));
+        }
+
+        public override object Invoke(TemplateContext context, ScriptNode callerContext, ScriptArray arguments, ScriptBlockStatement blockStatement)
+        {
+            var callerSpan = callerContext?.Span ?? context.CurrentSpan;
+            var arg0 = ConvertNullableReferenceArgument<object>(context, callerSpan, arguments[0], 0);
 
             return _delegate(context, callerSpan, arg0);
         }

@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>netstandard2.0;net10.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
     <AssemblyName>CodeBrix.Templating</AssemblyName>
     <RootNamespace>CodeBrix.Templating</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -47,6 +48,23 @@
     <AssemblyVersion>$(BuildVersion)</AssemblyVersion>
     <FileVersion>$(BuildVersion)</FileVersion>
   </PropertyGroup>
+
+  <!--
+    netstandard2.0 is the target loaded by Roslyn source generators / analyzers
+    (Visual Studio runs the compiler on .NET Framework). It needs these
+    Microsoft-maintained packages for APIs that are in-box on net10.0. The
+    net10.0 target has no NuGet dependencies. Attribute / IsExternalInit shims
+    for netstandard2.0 live in Compatibility/ (no PolySharp).
+  -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+    <PackageReference Include="System.Text.Json" Version="10.0.12" />
+    <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.6.3" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
+    <Compile Remove="Compatibility\**" />
+  </ItemGroup>
 
   <!-- NuGet package properties -->
   <PropertyGroup>

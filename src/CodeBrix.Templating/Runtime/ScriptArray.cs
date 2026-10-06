@@ -495,7 +495,21 @@ class ScriptArray<T> : IList<T>, IList, IScriptObject, IScriptCustomBinaryOperat
                     return true;
                 }
 
-                var newArray = new ScriptArray<T>(intModifier * array.Count);
+                if (array.Count == 0)
+                {
+                    result = new ScriptArray<T>();
+                    return true;
+                }
+
+                var resultLength = (long)intModifier * array.Count;
+                if (resultLength > int.MaxValue)
+                {
+                    throw new ScriptRuntimeException(span, "Array multiplication result length exceeds the maximum supported array length.");
+                }
+
+                using var loopScope = context.EnterLoopScope();
+                context.StepLoop(span, resultLength + intModifier);
+                var newArray = new ScriptArray<T>((int)resultLength);
                 for (int i = 0; i < intModifier; i++)
                 {
                     newArray.AddRange(array);

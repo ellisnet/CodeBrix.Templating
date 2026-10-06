@@ -181,7 +181,7 @@ partial class ScriptObject : IDictionary<string, object>, IEnumerable, IScriptOb
     /// <summary>
     /// Tries the get the value of the specified member.
     /// </summary>
-    /// <param name="context"></param>
+    /// <param name="context">The active template context, or <c>null</c> when accessed outside template evaluation.</param>
     /// <param name="span"></param>
     /// <param name="member">The member.</param>
     /// <param name="value">The value.</param>
@@ -232,7 +232,7 @@ partial class ScriptObject : IDictionary<string, object>, IEnumerable, IScriptOb
 
     bool IDictionary<string, object>.TryGetValue(string key, out object value)
     {
-        return TryGetValue(new TemplateContext(), new SourceSpan(), key, out value);
+        return TryGetValue(null, new SourceSpan(), key, out value);
     }
     /// <summary><c>this[string]</c>.</summary>
     public virtual object this[string key]
@@ -241,14 +241,14 @@ partial class ScriptObject : IDictionary<string, object>, IEnumerable, IScriptOb
         {
             if (key is null) throw new ArgumentNullException(nameof(key));
             object value;
-            TryGetValue(new TemplateContext(), new SourceSpan(), key, out value);
+            TryGetValue(null, new SourceSpan(), key, out value);
             return value;
         }
         set
         {
             if (key is null) throw new ArgumentNullException(nameof(key));
             this.AssertNotReadOnly();
-            TrySetValue(new TemplateContext(), new SourceSpan(), key, value, false);
+            TrySetValue(null, new SourceSpan(), key, value, false);
         }
     }
     /// <summary><c>Keys</c>.</summary>
@@ -283,7 +283,7 @@ partial class ScriptObject : IDictionary<string, object>, IEnumerable, IScriptOb
     /// <summary>
     /// Sets the value and readonly state of the specified member. This method overrides previous readonly state.
     /// </summary>
-    /// <param name="context"></param>
+    /// <param name="context">The active template context, or <c>null</c> when accessed outside template evaluation.</param>
     /// <param name="span"></param>
     /// <param name="member">The member.</param>
     /// <param name="value">The value.</param>

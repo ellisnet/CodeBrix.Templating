@@ -125,7 +125,7 @@ partial class ScriptTableRowStatement : ScriptForStatement
                 switch (member)
                 {
                     case "col":
-                        value = context.IsLiquid ? Col + 1 : Col;
+                        value = context?.IsLiquid == true ? Col + 1 : Col;
                         return true;
                     case "col0":
                         value = Col;

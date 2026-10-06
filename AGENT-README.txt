@@ -14,7 +14,9 @@ default) or the Liquid template language, binds them to a .NET object model,
 and renders them to text -- code generation, HTML pages, e-mail bodies,
 reports, configuration files, SQL, anything produced from a model.
 
-Target framework: .NET 10 or later.
+Target frameworks: .NET 10 or later (net10.0), and .NET Standard 2.0
+(netstandard2.0) for hosts that need it -- most notably Roslyn source
+generators and analyzers, which must target netstandard2.0.
 
 What you get:
 
@@ -32,7 +34,8 @@ What you get:
     * A full public AST with visitors, a rewriter, a formatter and a printer,
       so templates can be analysed, transformed and written back to text.
 
-Provenance: CodeBrix.Templating is a port of the Scriban template engine.
+Provenance: CodeBrix.Templating is a port of the Scriban template engine,
+kept in line with Scriban 7.5.0.
 Every type lives under the CodeBrix.Templating.* namespaces. Do NOT use
 Scriban.* namespaces -- they do not exist in this library. The template
 language itself is unchanged, so Scriban/Liquid template text written for the
@@ -50,13 +53,30 @@ IMPORTANT: the package id is CodeBrix.Templating.BsdLicenseForever, NOT
 CodeBrix.Templating. The assembly name and the root namespace are both
 CodeBrix.Templating.
 
-NuGet dependencies: none. The library uses only the .NET base class library
-(System.Text.Json is part of the shared framework on .NET 10).
+NuGet dependencies:
+    net10.0          none. The library uses only the .NET base class library
+                     (System.Text.Json is part of the shared framework).
+    netstandard2.0   Microsoft.CSharp, System.Text.Json and
+                     System.Threading.Tasks.Extensions (all Microsoft-
+                     maintained), for APIs that are in-box on net10.0.
 
 Native libraries / OS restrictions: none. The library is pure managed code and
-runs on every platform .NET 10 supports.
+runs on every platform .NET 10 (or a netstandard2.0-compatible runtime)
+supports.
 
 License: BSD-2-Clause.
+
+Behaviour changes from the Scriban 7.5.0 sync (relevant if you upgrade from an
+earlier CodeBrix.Templating package):
+
+    * LoopLimit is now ONE cumulative iteration budget shared by every nested
+      loop and every internal iteration (array functions, ranges, member
+      enumeration) until the outermost loop exits, instead of a separate count
+      per loop -- a template that nests loops near the limit may now hit it.
+    * html.url_escape no longer calls the obsolete Uri.EscapeUriString; it
+      percent-encodes every character that is not valid in a URL while keeping
+      URL syntax characters (: / ? # & = ') intact, so its output can differ
+      slightly from earlier releases.
 
 Third-party attribution for the ported upstream code ships in the package as
 THIRD-PARTY-NOTICES.txt.
@@ -67,7 +87,7 @@ KEY NAMESPACES / USINGS
 
     using CodeBrix.Templating;
         // Template, TemplateContext, LiquidTemplateContext, LogMessageBag,
-        // ScriptPrinter, ScriptPrinterOptions
+        // ScriptPrinter, ScriptPrinterOptions, ScriptLimitBehavior
 
     using CodeBrix.Templating.Runtime;
         // ScriptObject, IScriptObject, ScriptObjectExtensions (the Import
@@ -235,11 +255,16 @@ Culture:
 
 Limits and safety (defaults as shipped):
 
-    int      LoopLimit            { get; set; }   // 1000 iterations per loop
+    int      LoopLimit            { get; set; }   // 1000 iterations, cumulative
+                                                  // across nested iteration
     int?     LoopLimitQueryable   { get; set; }   // null = use LoopLimit
     int      RecursiveLimit       { get; set; }   // 100 nested evaluations
     int      ObjectRecursionLimit { get; set; }   // 20
     int      LimitToString        { get; set; }   // 1048576 characters
+    int?     OutputLimit          { get; set; }   // null = use LimitToString;
+                                                  // 0 disables the output limit
+    ScriptLimitBehavior OnStringLimit { get; set; }  // Truncate (or Throw)
+    ScriptLimitBehavior OnOutputLimit { get; set; }  // Truncate (or Throw)
     TimeSpan RegexTimeOut         { get; set; }   // 10 seconds
     CancellationToken CancellationToken { get; set; }
     void     CheckAbort()                         // throws ScriptAbortException
@@ -876,8 +901,13 @@ html (CodeBrix.Templating.Functions.HtmlFunctions)
     html.strip <text>                   removes HTML tags (regex-based; not a
                                         security-grade sanitiser)
     html.newline_to_br <text>           inserts <br /> before each newline
-    html.url_encode <text>              percent-encodes URL-unsafe characters
-    html.url_escape <text>              escapes characters not allowed in URLs
+    html.url_encode <text>              percent-encodes a URL component,
+                                        including URL syntax characters; use
+                                        it for untrusted values
+    html.url_escape <text>              escapes characters not valid in a
+                                        complete URL but keeps URL syntax
+                                        characters; for trusted URLs only,
+                                        NOT a sanitiser
 
 include and include_join
 ------------------------
@@ -1172,8 +1202,12 @@ RUNTIME ERRORS
 
 Set TemplateContext.CancellationToken and the engine raises
 ScriptAbortException at the next CheckAbort point. Exceeding LoopLimit,
-RecursiveLimit, ObjectRecursionLimit or LimitToString raises
-ScriptRuntimeException.
+RecursiveLimit or ObjectRecursionLimit raises ScriptRuntimeException.
+Reaching LimitToString (a single string conversion) or OutputLimit (the
+cumulative rendered output, reset for each top-level render) truncates with
+an ellipsis by default; set OnStringLimit / OnOutputLimit to
+ScriptLimitBehavior.Throw to raise ScriptRuntimeException instead.
+Allocation guards in string-producing operations always throw.
 
 LOCATIONS
 ---------
@@ -1754,8 +1788,9 @@ PERFORMANCE TIPS
   writes to a stream instead of building a string in memory.
 * USE RenderAsync when the model exposes async delegates or when the template
   loader does I/O -- the sync path blocks on those.
-* KEEP LOOPS BOUNDED. LoopLimit (1000) applies per loop and to range
-  expressions; raise it deliberately rather than setting it to 0.
+* KEEP LOOPS BOUNDED. LoopLimit (1000) is one budget shared by nested loops,
+  internal iteration and range expressions; raise it deliberately rather than
+  setting it to 0.
 * array.each / array.filter and range expressions are lazy; array.sort,
   array.uniq and array.reverse materialise. Order pipelines so filtering
   happens before sorting.
@@ -1928,7 +1963,7 @@ QUICK REFERENCE CARD
 
     Package     CodeBrix.Templating.BsdLicenseForever   (BSD-2-Clause)
     Namespace   CodeBrix.Templating[.Runtime|.Parsing|.Syntax|.Functions]
-    Framework   .NET 10 or later, no native dependencies
+    Framework   .NET 10 or later, or netstandard2.0; no native dependencies
 
     PARSE       Template.Parse(text[, sourceFilePath, parserOptions, lexerOptions])
                 Template.ParseLiquid(text[, ...])
@@ -1950,8 +1985,10 @@ QUICK REFERENCE CARD
     OUTPUT      context.PushOutput(new TextWriterOutput(writer));
                 context.PopOutput();
 
-    LIMITS      LoopLimit 1000, RecursiveLimit 100, ObjectRecursionLimit 20,
-                LimitToString 1048576, RegexTimeOut 10s, CancellationToken
+    LIMITS      LoopLimit 1000 (cumulative), RecursiveLimit 100,
+                ObjectRecursionLimit 20, LimitToString 1048576,
+                OutputLimit (null = LimitToString), RegexTimeOut 10s,
+                CancellationToken
     STRICTNESS  StrictVariables, EnableRelaxedMemberAccess (true),
                 EnableRelaxedTargetAccess, EnableRelaxedFunctionAccess,
                 EnableRelaxedIndexerAccess (true), EnableNullIndexer

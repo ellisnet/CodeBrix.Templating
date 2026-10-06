@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using Xunit;
 using CodeBrix.Templating.Functions;
 using CodeBrix.Templating.Parsing;
@@ -33,6 +34,154 @@ public class TestFunctions
         public void TestSortNoError()
         {
             TestParser.AssertTemplate("true", "{{ [1,2] || array.sort }}");
+        }
+
+        [Fact]
+        public void TestSortMixedNumberTypes()
+        {
+            var context = new TemplateContext();
+            var items = new ScriptArray { 3, 1.5, 2L, (decimal)0.5 };
+
+            var sorted = ArrayFunctions.Sort(context, new SourceSpan(), items).Cast<object>().ToArray();
+
+            Assert.Equal(new object[] { (decimal)0.5, 1.5, 2L, 3 }, sorted);
+        }
+
+        [Fact]
+        public void TestSortMixedNumberTypesByMember()
+        {
+            var context = new TemplateContext();
+            var items = new ScriptArray
+            {
+                new ScriptObject { { "name", "int" }, { "key", 3 } },
+                new ScriptObject { { "name", "double" }, { "key", 1.5 } },
+                new ScriptObject { { "name", "long" }, { "key", 2L } },
+            };
+
+            var sorted = ArrayFunctions.Sort(context, new SourceSpan(), items, "key");
+            var orderedNames = sorted.Cast<ScriptObject>().Select(item => item["name"]?.ToString()).ToArray();
+
+            Assert.Equal(new[] { "double", "long", "int" }, orderedNames);
+        }
+
+        [Fact]
+        public void TestSortComparerOrdersNaNFirst()
+        {
+            var comparer = ArrayFunctions.SortComparer.Instance;
+
+            Assert.True(comparer.Compare(double.NaN, 1) < 0);
+            Assert.True(comparer.Compare(double.NaN, 1.0) < 0);
+            Assert.True(comparer.Compare(double.NaN, (decimal)1) < 0);
+            Assert.True(comparer.Compare(float.NaN, 1L) < 0);
+            Assert.True(comparer.Compare(1, double.NaN) > 0);
+            Assert.Equal(0, comparer.Compare(double.NaN, float.NaN));
+            Assert.True(comparer.Compare(double.NaN, double.NegativeInfinity) < 0);
+            Assert.Equal(0, comparer.Compare(-0.0, 0));
+            Assert.Equal(0, comparer.Compare(-0.0m, 0.0));
+        }
+
+        [Fact]
+        public void TestSortComparerKeepsIntegerPrecisionAgainstDouble()
+        {
+            var comparer = ArrayFunctions.SortComparer.Instance;
+
+            Assert.True(comparer.Compare(0.1m, 0.1) < 0);
+            Assert.True(comparer.Compare(9007199254740993L, 9007199254740992d) > 0);
+            Assert.Equal(0, comparer.Compare(9007199254740992d, 9007199254740992L));
+            Assert.True(comparer.Compare(9007199254740993L, 9007199254740992L) > 0);
+            Assert.True(comparer.Compare(ulong.MaxValue, (double)ulong.MaxValue) < 0);
+            Assert.True(comparer.Compare(BigInteger.Pow(10, 40), 1e40) < 0);
+            Assert.Equal(0, comparer.Compare(BigInteger.Parse("10000000000000000303786028427003666890752"), 1e40));
+        }
+
+        [Fact]
+        public void TestSortComparerIsATotalOrder()
+        {
+            var comparer = ArrayFunctions.SortComparer.Instance;
+            var values = new object[]
+            {
+                double.NaN, float.NaN,
+                double.NegativeInfinity, float.NegativeInfinity,
+                double.PositiveInfinity, float.PositiveInfinity,
+                -1, -1L, -1.0, (decimal)-1, new BigInteger(-1),
+                0, 0.0, -0.0, (decimal)0, BigInteger.Zero, (byte)0,
+                1, 1L, 1.0f, 1.0, 1.00m, new BigInteger(1),
+                0.5, 0.5m, 0.1, 0.1m,
+                double.Epsilon, -double.Epsilon, float.Epsilon,
+                9007199254740992L, 9007199254740992d, 9007199254740993L,
+                ulong.MaxValue, (double)ulong.MaxValue, new BigInteger(ulong.MaxValue),
+                decimal.MaxValue, BigInteger.Pow(10, 40), 1e40,
+            };
+
+            foreach (var x in values)
+            {
+                Assert.True(comparer.Compare(x, x) == 0, $"{Describe(x)} must compare equal to itself.");
+
+                foreach (var y in values)
+                {
+                    if (System.Math.Sign(comparer.Compare(x, y)) != -System.Math.Sign(comparer.Compare(y, x)))
+                    {
+                        Assert.Fail($"{Describe(x)} vs {Describe(y)} is not antisymmetric.");
+                    }
+                }
+            }
+
+            foreach (var x in values)
+            {
+                foreach (var y in values)
+                {
+                    var xy = System.Math.Sign(comparer.Compare(x, y));
+                    foreach (var z in values)
+                    {
+                        var yz = System.Math.Sign(comparer.Compare(y, z));
+                        var xz = System.Math.Sign(comparer.Compare(x, z));
+                        if (xy == 0 && xz != yz)
+                        {
+                            Assert.Fail($"{Describe(x)}, {Describe(y)}, {Describe(z)} are not transitive.");
+                        }
+                        else if (xy != 0 && (yz == 0 || yz == xy) && xz != xy)
+                        {
+                            Assert.Fail($"{Describe(x)}, {Describe(y)}, {Describe(z)} are not transitive.");
+                        }
+                    }
+                }
+            }
+        }
+
+        private static string Describe(object value) => $"{value.GetType().Name}({value})";
+
+        [Fact]
+        public void TestSortOrdersNaNBeforeNumbers()
+        {
+            var context = new TemplateContext();
+            var items = new ScriptArray { 1, double.NaN, 0.5 };
+
+            var sorted = ArrayFunctions.Sort(context, new SourceSpan(), items).Cast<object>().ToArray();
+
+            Assert.Equal(new object[] { double.NaN, 0.5, 1 }, sorted);
+        }
+
+        [Fact]
+        public void TestSortOrdersInfinitiesAcrossNumberTypes()
+        {
+            var context = new TemplateContext();
+            var items = new ScriptArray { double.PositiveInfinity, 0, float.NegativeInfinity, new BigInteger(long.MaxValue) };
+
+            var sorted = ArrayFunctions.Sort(context, new SourceSpan(), items).Cast<object>().ToArray();
+
+            Assert.Equal(new object[] { float.NegativeInfinity, 0, new BigInteger(long.MaxValue), double.PositiveInfinity }, sorted);
+        }
+
+        [Fact]
+        public void TestSortKeepsIntegerPrecisionAgainstDouble()
+        {
+            var context = new TemplateContext();
+            var items = new ScriptArray { 9007199254740993L, 9007199254740992d, 9007199254740992L };
+
+            var sorted = ArrayFunctions.Sort(context, new SourceSpan(), items).Cast<object>().ToArray();
+
+            Assert.Equal(new[] { typeof(double), typeof(long), typeof(long) }, sorted.Select(item => item.GetType()).ToArray());
+            Assert.Equal(9007199254740993L, sorted[2]);
         }
 
         [Fact]

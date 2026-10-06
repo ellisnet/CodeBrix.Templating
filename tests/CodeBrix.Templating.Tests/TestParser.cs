@@ -391,10 +391,10 @@ raw
     public void TestUtcDateNow()
     {
         // default is dd MM yyyy
-        var dateNow = DateTime.UtcNow.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+        var utcNow = DateTime.UtcNow.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
         var template = ParseTemplate(@"{{ date.utc_now }}");
         var result = template.Render();
-        Assert.Equal(dateNow, result);
+        Assert.Equal(utcNow, result);
 
         template = ParseTemplate(@"{{ date.format = '%Y'; date.utc_now }}");
         result = template.Render();
@@ -402,7 +402,7 @@ raw
 
         template = ParseTemplate(@"{{ date.format = '%Y'; date.utc_now | date.add_years 1 }}");
         result = template.Render();
-        Assert.Equal(DateTime.Now.AddYears(1).ToString("yyyy", CultureInfo.InvariantCulture), result);
+        Assert.Equal(DateTime.UtcNow.AddYears(1).ToString("yyyy", CultureInfo.InvariantCulture), result);
     }
 
     [Fact]
@@ -920,6 +920,66 @@ m
         Assert.Contains("The statement depth limit `10` was reached when parsing this statement", template.Messages[0].ToString());
     }
 
+    [Theory]
+    [InlineData("parentheses")]
+    [InlineData("arrays")]
+    [InlineData("objects")]
+    [InlineData("unary")]
+    public void ExpressionDepthLimitStopsDeepNestedExpressionsBeforeStackOverflow(string expressionKind)
+    {
+        var expression = CreateDeepExpression(expressionKind, 10000);
+
+        var template = Template.Parse($"{{{{ {expression} }}}}");
+
+        Assert.True(template.HasErrors);
+        // Available stack space varies by platform and test runner, so either safety guard may stop parsing first.
+        var message = template.Messages[0].ToString();
+        Assert.True(
+            message.Contains("The statement depth limit `250` was reached when parsing this statement")
+            || message.Contains("The parser recursive depth limit was reached near a stack overflow"),
+            message);
+    }
+
+    [Fact]
+    public void ExpressionDepthLimitStopsDeepLiquidExpressionsBeforeStackOverflow()
+    {
+        var expression = CreateDeepExpression("parentheses", 10000);
+
+        var template = Template.ParseLiquid($"{{{{ {expression} }}}}");
+
+        Assert.True(template.HasErrors);
+        // Available stack space varies by platform and test runner, so either safety guard may stop parsing first.
+        var message = template.Messages[0].ToString();
+        Assert.True(
+            message.Contains("The statement depth limit `250` was reached when parsing this statement")
+            || message.Contains("The parser recursive depth limit was reached near a stack overflow"),
+            message);
+    }
+
+    private static string CreateDeepExpression(string expressionKind, int depth)
+    {
+        switch (expressionKind)
+        {
+            case "parentheses":
+                return new string('(', depth) + "1" + new string(')', depth);
+            case "arrays":
+                return new string('[', depth) + "1" + new string(']', depth);
+            case "objects":
+                var objectBuilder = new StringBuilder();
+                for (var i = 0; i < depth; i++)
+                {
+                    objectBuilder.Append("{x:");
+                }
+                objectBuilder.Append('1');
+                objectBuilder.Append('}', depth);
+                return objectBuilder.ToString();
+            case "unary":
+                return new string('!', depth) + "true";
+            default:
+                throw new ArgumentOutOfRangeException(nameof(expressionKind), expressionKind, "Unsupported expression kind.");
+        }
+    }
+
     [InlineData(@"ab{{end}}c")]  // no blocks
     [InlineData(@"a{{if true}}b{{end}}{{end}}c")]  // one-level block
     [InlineData(@"a{{if true}}{{for i in 0..1}}b{{end}}{{end}}{{end}}c")]  // two-level block (nested)
@@ -1226,7 +1286,7 @@ m
         var builtinDocFile = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "site", "docs", "builtins", $"{functionObject}.md"));
         var lines = File.ReadAllLines(builtinDocFile);
 
-        var matchFunctionSection = new Regex($@"^##\s+`({functionObject}\.\w+)`");
+        var matchFunctionSection = new Regex($@"^###\s+`({functionObject}\.\w+)`");
 
         var tests = new List<object[]>();
 

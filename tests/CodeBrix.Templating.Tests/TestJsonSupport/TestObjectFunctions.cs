@@ -100,6 +100,20 @@ public class TestObjectFunctions {
     }
 
     [Fact]
+    public void To_json_should_respect_loop_limit()
+    {
+        var context = new TemplateContext
+        {
+            LoopLimit = 5
+        };
+        var template = Template.Parse("{{ [1, 2, 3, 4, 5, 6] | object.to_json }}");
+
+        var exception = Assert.Throws<ScriptRuntimeException>(() => template.Render(context));
+
+        Assert.Contains("iteration limit `5`", exception.Message);
+    }
+
+    [Fact]
     public void Can_handle_MemberRenamer_when_writing_json()
     {
         var template = Template.Parse("""

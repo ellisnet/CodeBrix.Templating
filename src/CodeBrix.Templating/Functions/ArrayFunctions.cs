@@ -6,6 +6,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using CodeBrix.Templating.Parsing;
@@ -20,9 +21,23 @@ namespace CodeBrix.Templating.Functions; //was previously: Scriban.Functions;
 public
 partial class ArrayFunctions : ScriptObject
 {
+    /// <summary><c>Add</c>.</summary>
+    [ScriptMemberIgnore]
+    public static IEnumerable Add(IEnumerable list, object value)
+    {
+        if (list is null)
+        {
+            return new ScriptRange { value };
+        }
+
+        return list is IList ? (IEnumerable)new ScriptArray(list) { value } : new ScriptRange(list) { value };
+    }
+
     /// <summary>
     /// Adds a value to the input list.
     /// </summary>
+    /// <param name="context">The template context</param>
+    /// <param name="span">The source span</param>
     /// <param name="list">The input list</param>
     /// <param name="value">The value to add at the end of the list</param>
     /// <returns>A new list with the value added</returns>
@@ -34,14 +49,24 @@ partial class ArrayFunctions : ScriptObject
     /// [1, 2, 3, 4]
     /// ```
     /// </remarks>
-    public static IEnumerable Add(IEnumerable list, object value)
+    public static IEnumerable Add(TemplateContext context, SourceSpan span, IEnumerable list, object value)
     {
         if (list is null)
         {
             return new ScriptRange { value };
         }
 
-        return list is IList ? (IEnumerable)new ScriptArray(list) { value } : new ScriptRange(list) { value };
+        var array = new ScriptArray();
+        using var loopScope = context.EnterLoopScope();
+        var loopType = GetLoopType(list);
+        foreach (var item in list)
+        {
+            context.StepLoop(span, loopType);
+            array.Add(item);
+        }
+
+        array.Add(value);
+        return array;
     }
     /// <summary><c>AddRange</c>.</summary>
     [ScriptMemberIgnore]
@@ -218,11 +243,11 @@ partial class ArrayFunctions : ScriptObject
         var arguments = new ScriptArray();
         arguments.Add(null);
         arguments.AddRange(args);
-        var loopStep = 0;
+        using var loopScope = context.EnterLoopScope();
         var loopType = GetLoopType(list);
         foreach (var item in list)
         {
-            context.StepLoop(span, ref loopStep, loopType);
+            context.StepLoop(span, loopType);
             arguments[0] = item;
             var result = ScriptFunctionCall.Call(context, context.CurrentNode, scriptFunction, arguments);
             if (result is bool b && b)
@@ -256,11 +281,11 @@ partial class ArrayFunctions : ScriptObject
     private static IEnumerable EachInternal(TemplateContext context, ScriptNode callerContext, SourceSpan span, IEnumerable list, IScriptCustomFunction function, Type destType)
     {
         var arg = new ScriptArray(1);
-        var loopStep = 0;
+        using var loopScope = context.EnterLoopScope();
         var loopType = GetLoopType(list);
         foreach (var item in list)
         {
-            context.StepLoop(span, ref loopStep, loopType);
+            context.StepLoop(span, loopType);
             var itemToTransform = context.ToObject(span, item, destType);
             arg[0] = itemToTransform;
             var itemTransformed = ScriptFunctionCall.Call(context, callerContext, function, arg);
@@ -295,11 +320,11 @@ partial class ArrayFunctions : ScriptObject
     static IEnumerable FilterInternal(TemplateContext context, ScriptNode callerContext, SourceSpan span, IEnumerable list, IScriptCustomFunction function, Type destType)
     {
         var arg = new ScriptArray(1);
-        var loopStep = 0;
+        using var loopScope = context.EnterLoopScope();
         var loopType = GetLoopType(list);
         foreach (var item in list)
         {
-            context.StepLoop(span, ref loopStep, loopType);
+            context.StepLoop(span, loopType);
             var itemToTransform = context.ToObject(span, item, destType);
             arg[0] = itemToTransform;
             var itemTransformed = ScriptFunctionCall.Call(context, callerContext, function, arg);
@@ -344,9 +369,32 @@ partial class ArrayFunctions : ScriptObject
         return null;
     }
 
+    /// <summary><c>InsertAt</c>.</summary>
+    [ScriptMemberIgnore]
+    public static IEnumerable InsertAt(IEnumerable list, int index, object value)
+    {
+        if (index < 0)
+        {
+            index = 0;
+        }
+
+        var array = list is null ? new ScriptArray() : new ScriptArray(list);
+        // Make sure that the list has already inserted elements before the index
+        for (int i = array.Count; i < index; i++)
+        {
+            array.Add(null);
+        }
+
+        array.Insert(index, value);
+
+        return array;
+    }
+
     /// <summary>
     /// Inserts a `value` at the specified index in the input `list`.
     /// </summary>
+    /// <param name="context">The template context</param>
+    /// <param name="span">The source span</param>
     /// <param name="list">The input list</param>
     /// <param name="index">The index in the list where to insert the element</param>
     /// <param name="value">The value to insert</param>
@@ -359,17 +407,29 @@ partial class ArrayFunctions : ScriptObject
     /// ["a", "b", "Yo", "c"]
     /// ```
     /// </remarks>
-    public static IEnumerable InsertAt(IEnumerable list, int index, object value)
+    public static IEnumerable InsertAt(TemplateContext context, SourceSpan span, IEnumerable list, int index, object value)
     {
         if (index < 0)
         {
             index = 0;
         }
 
-        var array = list is null ? new ScriptArray() : new ScriptArray(list);
+        var array = new ScriptArray();
+        using var loopScope = context.EnterLoopScope();
+        if (list is not null)
+        {
+            var loopType = GetLoopType(list);
+            foreach (var item in list)
+            {
+                context.StepLoop(span, loopType);
+                array.Add(item);
+            }
+        }
+
         // Make sure that the list has already inserted elements before the index
         for (int i = array.Count; i < index; i++)
         {
+            context.StepLoop(span);
             array.Add(null);
         }
 
@@ -412,11 +472,11 @@ partial class ArrayFunctions : ScriptObject
         var text = new StringBuilder();
         bool afterFirst = false;
         var arg = new ScriptArray(1);
-        var loopStep = 0;
+        using var loopScope = context.EnterLoopScope();
         var loopType = GetLoopType(list);
         foreach (var obj in list)
         {
-            context.StepLoop(span, ref loopStep, loopType);
+            context.StepLoop(span, loopType);
             if (afterFirst)
             {
                 ValidateJoinedTextLength(context, span, text.Length, delimiter?.Length ?? 0);
@@ -494,11 +554,11 @@ partial class ArrayFunctions : ScriptObject
 
         object last = null;
         var hasValue = false;
-        var loopStep = 0;
+        using var loopScope = context.EnterLoopScope();
         var loopType = GetLoopType(list);
         foreach (var item in list)
         {
-            context.StepLoop(span, ref loopStep, loopType);
+            context.StepLoop(span, loopType);
             last = item;
             hasValue = true;
         }
@@ -573,11 +633,11 @@ partial class ArrayFunctions : ScriptObject
             yield break;
         }
 
-        var loopStep = 0;
+        using var loopScope = context.EnterLoopScope();
         var loopType = GetLoopType(enumerable);
         foreach (var item in enumerable)
         {
-            context.StepLoop(span, ref loopStep, loopType);
+            context.StepLoop(span, loopType);
             var itemAccessor = context.GetMemberAccessor(item);
             if (itemAccessor.HasMember(context, span, item, member))
             {
@@ -613,27 +673,8 @@ partial class ArrayFunctions : ScriptObject
         return ScriptRange.Offset(context, span, list, index);
     }
 
-    /// <summary>
-    /// Removes an element at the specified `index` from the input `list`
-    /// </summary>
-    /// <param name="list">The input list</param>
-    /// <param name="index">The index of a list to return elements</param>
-    /// <returns>A new list with the element removed. If index is negative, remove at the end of the list.</returns>
-    /// <remarks>
-    /// ```scriban-html
-    /// {{ [4, 5, 6, 7, 8] | array.remove_at 2 }}
-    /// ```
-    /// ```html
-    /// [4, 5, 7, 8]
-    /// ```
-    /// If the `index` is negative, removes at the end of the list (notice that we need to put -1 in parenthesis to avoid confusing the parser with a binary `-` operation):
-    /// ```scriban-html
-    /// {{ [4, 5, 6, 7, 8] | array.remove_at (-1) }}
-    /// ```
-    /// ```html
-    /// [4, 5, 6, 7]
-    /// ```
-    /// </remarks>
+    /// <summary><c>RemoveAt</c>.</summary>
+    [ScriptMemberIgnore]
     public static IList RemoveAt(IList list, int index)
     {
         if (list is null)
@@ -654,6 +695,58 @@ partial class ArrayFunctions : ScriptObject
             list.RemoveAt(index);
         }
         return list;
+    }
+
+    /// <summary>
+    /// Removes an element at the specified `index` from the input `list`
+    /// </summary>
+    /// <param name="context">The template context</param>
+    /// <param name="span">The source span</param>
+    /// <param name="list">The input list</param>
+    /// <param name="index">The index of a list to return elements</param>
+    /// <returns>A new list with the element removed. If index is negative, remove at the end of the list.</returns>
+    /// <remarks>
+    /// ```scriban-html
+    /// {{ [4, 5, 6, 7, 8] | array.remove_at 2 }}
+    /// ```
+    /// ```html
+    /// [4, 5, 7, 8]
+    /// ```
+    /// If the `index` is negative, removes at the end of the list (notice that we need to put -1 in parenthesis to avoid confusing the parser with a binary `-` operation):
+    /// ```scriban-html
+    /// {{ [4, 5, 6, 7, 8] | array.remove_at (-1) }}
+    /// ```
+    /// ```html
+    /// [4, 5, 6, 7]
+    /// ```
+    /// </remarks>
+    public static IList RemoveAt(TemplateContext context, SourceSpan span, IList list, int index)
+    {
+        if (list is null)
+        {
+            return new ScriptArray();
+        }
+
+        var array = new ScriptArray();
+        using var loopScope = context.EnterLoopScope();
+        var loopType = GetLoopType(list);
+        foreach (var item in list)
+        {
+            context.StepLoop(span, loopType);
+            array.Add(item);
+        }
+
+        // If index is negative, start from the end
+        if (index < 0)
+        {
+            index = array.Count + index;
+        }
+
+        if (index >= 0 && index < array.Count)
+        {
+            array.RemoveAt(index);
+        }
+        return array;
     }
     /// <summary><c>Reverse</c>.</summary>
     [ScriptMemberIgnore]
@@ -729,6 +822,7 @@ partial class ArrayFunctions : ScriptObject
             return 0;
         }
 
+        using var loopScope = context.EnterLoopScope();
         var collection = list as ICollection;
         if (collection is not null)
         {
@@ -737,11 +831,10 @@ partial class ArrayFunctions : ScriptObject
         }
 
         var count = 0;
-        var loopStep = 0;
         var loopType = GetLoopType(list);
         foreach (var _ in list)
         {
-            context.StepLoop(span, ref loopStep, loopType);
+            context.StepLoop(span, loopType);
             count++;
         }
 
@@ -759,6 +852,8 @@ partial class ArrayFunctions : ScriptObject
     /// <remarks>
     /// Equal values preserve their original relative order.
     /// Exact member names still take precedence over dotted-path fallback.
+    /// Numbers of different types are compared by their exact value, so no precision is lost when integers, floating-point numbers and decimals are mixed.
+    /// NaN sorts before negative infinity, which sorts before finite numbers, which sort before positive infinity.
     ///
     /// Sorts by element's value:
     /// ```scriban-html
@@ -792,27 +887,148 @@ partial class ArrayFunctions : ScriptObject
         }
 
         var realList = new List<object>();
-        var loopStep = 0;
+        using var loopScope = context.EnterLoopScope();
         var loopType = GetLoopType(enumerable);
         foreach (var item in enumerable)
         {
-            context.StepLoop(span, ref loopStep, loopType);
+            context.StepLoop(span, loopType);
             realList.Add(item);
         }
         if (realList.Count == 0)
             return new ScriptArray();
 
         var sortMember = member ?? string.Empty;
+        var comparer = SortComparer.Instance;
         if (string.IsNullOrEmpty(sortMember))
         {
-            realList = realList.OrderBy(item => item, Comparer<object>.Default).ToList();
+            realList = realList.OrderBy(item => item, comparer).ToList();
         }
         else
         {
-            realList = realList.OrderBy(item => GetSortValue(context, span, item, sortMember), Comparer<object>.Default).ToList();
+            realList = realList.OrderBy(item => GetSortValue(context, span, item, sortMember), comparer).ToList();
         }
 
         return new ScriptArray(realList);
+    }
+
+    internal sealed class SortComparer : IComparer<object>
+    {
+        public static readonly SortComparer Instance = new SortComparer();
+
+        private const int NaNOrder = -2;
+        private const int NegativeInfinityOrder = -1;
+        private const int FiniteOrder = 0;
+        private const int PositiveInfinityOrder = 1;
+
+        private SortComparer()
+        {
+        }
+
+        public int Compare(object x, object y)
+        {
+            if (x is not null && y is not null && x.GetType() != y.GetType() && MathFunctions.IsNumber(x) && MathFunctions.IsNumber(y))
+            {
+                return CompareNumbers(x, y);
+            }
+
+            return Comparer<object>.Default.Compare(x, y);
+        }
+
+        private static int CompareNumbers(object x, object y)
+        {
+            var xOrder = GetOrder(x);
+            var yOrder = GetOrder(y);
+            if (xOrder != FiniteOrder || yOrder != FiniteOrder)
+            {
+                return xOrder.CompareTo(yOrder);
+            }
+
+            GetExactValue(x, out var xNumerator, out var xDenominator);
+            GetExactValue(y, out var yNumerator, out var yDenominator);
+            return (xNumerator * yDenominator).CompareTo(yNumerator * xDenominator);
+        }
+
+        private static int GetOrder(object value)
+        {
+            switch (value)
+            {
+                case double d:
+                    return double.IsNaN(d) ? NaNOrder
+                        : double.IsNegativeInfinity(d) ? NegativeInfinityOrder
+                        : double.IsPositiveInfinity(d) ? PositiveInfinityOrder
+                        : FiniteOrder;
+                case float f:
+                    return float.IsNaN(f) ? NaNOrder
+                        : float.IsNegativeInfinity(f) ? NegativeInfinityOrder
+                        : float.IsPositiveInfinity(f) ? PositiveInfinityOrder
+                        : FiniteOrder;
+                default:
+                    return FiniteOrder;
+            }
+        }
+
+        private static void GetExactValue(object value, out BigInteger numerator, out BigInteger denominator)
+        {
+            denominator = BigInteger.One;
+            switch (value)
+            {
+                case sbyte v: numerator = v; break;
+                case byte v: numerator = v; break;
+                case short v: numerator = v; break;
+                case ushort v: numerator = v; break;
+                case int v: numerator = v; break;
+                case uint v: numerator = v; break;
+                case long v: numerator = v; break;
+                case ulong v: numerator = v; break;
+                case BigInteger v: numerator = v; break;
+                case decimal v: GetExactDecimalValue(v, out numerator, out denominator); break;
+                case float v: GetExactDoubleValue(v, out numerator, out denominator); break;
+                case double v: GetExactDoubleValue(v, out numerator, out denominator); break;
+                default: throw new ArgumentOutOfRangeException(nameof(value), $"The type `{value.GetType()}` is not a supported number.");
+            }
+        }
+
+        private static void GetExactDecimalValue(decimal value, out BigInteger numerator, out BigInteger denominator)
+        {
+            var bits = decimal.GetBits(value);
+            var mantissa = new BigInteger((uint)bits[0]);
+            mantissa |= (BigInteger)(uint)bits[1] << 32;
+            mantissa |= (BigInteger)(uint)bits[2] << 64;
+
+            numerator = (bits[3] & int.MinValue) != 0 ? -mantissa : mantissa;
+            denominator = BigInteger.Pow(10, (bits[3] >> 16) & 0xFF);
+        }
+
+        private static void GetExactDoubleValue(double value, out BigInteger numerator, out BigInteger denominator)
+        {
+            var bits = BitConverter.DoubleToInt64Bits(value);
+            var exponent = (int)((bits >> 52) & 0x7FF);
+            var mantissa = bits & 0xFFFFFFFFFFFFFL;
+
+            if (exponent == 0)
+            {
+                exponent = 1;
+            }
+            else
+            {
+                mantissa |= 1L << 52;
+            }
+
+            exponent -= 1075;
+
+            var result = bits < 0 ? -new BigInteger(mantissa) : new BigInteger(mantissa);
+
+            if (exponent >= 0)
+            {
+                numerator = result << exponent;
+                denominator = BigInteger.One;
+            }
+            else
+            {
+                numerator = result;
+                denominator = BigInteger.One << -exponent;
+            }
+        }
     }
 
     private static object GetSortValue(TemplateContext context, SourceSpan span, object target, string member)
@@ -930,11 +1146,11 @@ partial class ArrayFunctions : ScriptObject
             return false;
         }
 
-        var loopStep = 0;
+        using var loopScope = context.EnterLoopScope();
         var loopType = GetLoopType(list);
         foreach (var element in list)
         {
-            context.StepLoop(span, ref loopStep, loopType);
+            context.StepLoop(span, loopType);
             if (element == item || (element is not null && element.Equals(item))) return true;
             if (element is Enum e && CompareEnum(e, item)) return true;
         }

@@ -4,12 +4,14 @@ A fully managed, cross-platform text-templating and scripting language
 library for .NET. CodeBrix.Templating parses and renders templates in the
 Scriban and Liquid template languages, suitable for code generation, HTML
 pages, reports, configuration files, and any other text produced from a
-model. It is provided as a .NET 10 library and the
+model. It is provided as a .NET 10 (and .NET Standard 2.0) library and the
 `CodeBrix.Templating.BsdLicenseForever` NuGet package.
 
 CodeBrix.Templating supports applications and assemblies that target Microsoft .NET version 10.0 and later.
 Microsoft .NET version 10.0 is a Long-Term Supported (LTS) version of .NET, and was released on Nov 11, 2025; and will be actively supported by Microsoft until Nov 14, 2028.
 Please update your C#/.NET code and projects to the latest LTS version of Microsoft .NET.
+
+The package also includes a .NET Standard 2.0 build, for hosts that require it - most notably Roslyn source generators and analyzers.
 
 ## Installation
 
@@ -22,7 +24,7 @@ Note that the NuGet package ID and the namespace are different - there is no pac
 * NuGet package ID: `CodeBrix.Templating.BsdLicenseForever`
 * Assembly and primary namespace: `CodeBrix.Templating` - i.e. `using CodeBrix.Templating;`
 
-XML documentation (IntelliSense) ships alongside the assembly. The package has no NuGet dependencies of its own.
+XML documentation (IntelliSense) ships alongside the assembly. On .NET 10 the package has no NuGet dependencies of its own; the .NET Standard 2.0 build depends only on the Microsoft-maintained `Microsoft.CSharp`, `System.Text.Json` and `System.Threading.Tasks.Extensions` packages.
 
 ## CodeBrix.Templating supports:
 

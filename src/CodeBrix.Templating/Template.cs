@@ -104,8 +104,8 @@ partial class Template
     /// </summary>
     /// <param name="expression">A code only expression (without enclosing `{{` and `}}`)</param>
     /// <param name="model">An object instance used as a model for evaluating this expression</param>
-    /// <param name="memberRenamer">The member renamer used to import this .NET object and transitive objects. See member renamer documentation for more details.</param>
-    /// <param name="memberFilter">The member filter used to filter members for .NET objects being accessed through the template, including the model being passed to this method.</param>
+    /// <param name="memberRenamer">The member renamer used to import reflection-backed .NET object members and transitive reflection-backed object members. Dictionary keys and ScriptObject entries are data and are not renamed. See member renamer documentation for more details.</param>
+    /// <param name="memberFilter">The member filter used to filter reflection-backed .NET object members accessed through the template, including reflected members of the model being passed to this method. Dictionary keys and ScriptObject entries are data and are not filtered.</param>
     /// <returns>The result of the evaluation of the expression</returns>
     [RequiresUnreferencedCode("This overload imports the model object using reflection. Use Evaluate(TemplateContext) for AOT-safe evaluation.")]
     public static object Evaluate(string expression, object model, MemberRenamerDelegate memberRenamer = null, MemberFilterDelegate memberFilter = null)
@@ -142,8 +142,8 @@ partial class Template
     /// Evaluates the template using the specified context
     /// </summary>
     /// <param name="model">An object model to use with the evaluation.</param>
-    /// <param name="memberRenamer">The member renamer used to import this .NET object and transitive objects. See member renamer documentation for more details.</param>
-    /// <param name="memberFilter">The member filter used to filter members for .NET objects being accessed through the template, including the model being passed to this method.</param>
+    /// <param name="memberRenamer">The member renamer used to import reflection-backed .NET object members and transitive reflection-backed object members. Dictionary keys and ScriptObject entries are data and are not renamed. See member renamer documentation for more details.</param>
+    /// <param name="memberFilter">The member filter used to filter reflection-backed .NET object members accessed through the template, including reflected members of the model being passed to this method. Dictionary keys and ScriptObject entries are data and are not filtered.</param>
     /// <exception cref="System.InvalidOperationException">If the template <see cref="HasErrors"/>. Check the <see cref="Messages"/> property for more details</exception>
     /// <returns>Returns the result of the last statement</returns>
     [RequiresUnreferencedCode("This overload imports the model object using reflection. Use Evaluate(TemplateContext) for AOT-safe evaluation.")]
@@ -177,22 +177,31 @@ partial class Template
     /// </remarks>
     public string Render(TemplateContext context)
     {
-        EvaluateAndRender(context, true);
-        var result = context.Output.ToString();
-        var output = context.Output as StringBuilderOutput;
-        if (output is not null)
+        if (context is null) throw new ArgumentNullException(nameof(context));
+        context.EnterRender();
+        try
         {
-            output.Builder.Length = 0;
+            EvaluateAndRender(context, true);
+            var result = context.Output.ToString();
+            var output = context.Output as StringBuilderOutput;
+            if (output is not null)
+            {
+                output.Builder.Length = 0;
+            }
+            return result ?? string.Empty;
         }
-        return result ?? string.Empty;
+        finally
+        {
+            context.ExitRender();
+        }
     }
 
     /// <summary>
     /// Renders this template using the specified object model.
     /// </summary>
     /// <param name="model">The object model.</param>
-    /// <param name="memberRenamer">The member renamer used to import this .NET object and transitive objects. See member renamer documentation for more details.</param>
-    /// <param name="memberFilter">The member filter used to filter members for .NET objects being accessed through the template, including the model being passed to this method.</param>
+    /// <param name="memberRenamer">The member renamer used to import reflection-backed .NET object members and transitive reflection-backed object members. Dictionary keys and ScriptObject entries are data and are not renamed. See member renamer documentation for more details.</param>
+    /// <param name="memberFilter">The member filter used to filter reflection-backed .NET object members accessed through the template, including reflected members of the model being passed to this method. Dictionary keys and ScriptObject entries are data and are not filtered.</param>
     /// <returns>A rendering result as a string </returns>
     [RequiresUnreferencedCode("This overload imports the model object using reflection. Use Render(TemplateContext) for AOT-safe rendering.")]
     public string Render(object model = null, MemberRenamerDelegate memberRenamer = null, MemberFilterDelegate memberFilter = null)
