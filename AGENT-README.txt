@@ -426,7 +426,13 @@ Pass a Type as `obj` to import the static members of that type
 fields and properties.
 
     [Flags] enum ScriptMemberImportFlags { Field = 1, Property = 2,
-                                           Method = 4, All = Field|Property|Method }
+                                           Method = 4, MethodInstance = 8,
+                                           All = Field|Property|Method }
+
+MethodInstance is marked [Obsolete] and does nothing: importing instance
+methods is not supported, so passing it imports no extra members and the
+compiler warns (CS0618). It is not part of All. Use Method for static methods,
+or Import(member, Delegate) to expose a bound instance method.
 
     delegate bool   MemberFilterDelegate(MemberInfo member);
     delegate string MemberRenamerDelegate(MemberInfo member);
