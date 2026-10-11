@@ -256,15 +256,22 @@ Culture:
 Limits and safety (defaults as shipped):
 
     int      LoopLimit            { get; set; }   // 1000 iterations, cumulative
-                                                  // across nested iteration
-    int?     LoopLimitQueryable   { get; set; }   // null = use LoopLimit
-    int      RecursiveLimit       { get; set; }   // 100 nested evaluations
-    int      ObjectRecursionLimit { get; set; }   // 20
-    int      LimitToString        { get; set; }   // 1048576 characters
+                                                  // across nested iteration;
+                                                  // 0 = no limit
+    int?     LoopLimitQueryable   { get; set; }   // null = use LoopLimit;
+                                                  // 0 = no limit
+    int      RecursiveLimit       { get; set; }   // 100 nested evaluations;
+                                                  // 0 = no limit
+    int      ObjectRecursionLimit { get; set; }   // 20; 0 = no limit
+    int      LimitToString        { get; set; }   // 1048576 characters;
+                                                  // 0 = no limit
     int?     OutputLimit          { get; set; }   // null = use LimitToString;
-                                                  // 0 disables the output limit
+                                                  // 0 = no limit
     ScriptLimitBehavior OnStringLimit { get; set; }  // Truncate (or Throw)
     ScriptLimitBehavior OnOutputLimit { get; set; }  // Truncate (or Throw)
+
+    Every limit reads 0 (or a negative value) as "no limit". A negative value
+    is never meaningful; use 0.
     TimeSpan RegexTimeOut         { get; set; }   // 10 seconds
     CancellationToken CancellationToken { get; set; }
     void     CheckAbort()                         // throws ScriptAbortException
@@ -1213,6 +1220,12 @@ Reaching LimitToString (a single string conversion) or OutputLimit (the
 cumulative rendered output, reset for each top-level render) truncates with
 an ellipsis by default; set OnStringLimit / OnOutputLimit to
 ScriptLimitBehavior.Throw to raise ScriptRuntimeException instead.
+
+CODE GENERATION: when a template produces source code, configuration or any
+other output that must never be silently cut short, set BOTH OnStringLimit
+and OnOutputLimit to ScriptLimitBehavior.Throw and either raise the limits
+or set them to 0. The default Truncate behaviour would hand back a
+syntactically broken file with only an ellipsis to show for it.
 Allocation guards in string-producing operations always throw.
 
 LOCATIONS

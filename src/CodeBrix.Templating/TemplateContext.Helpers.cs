@@ -95,7 +95,7 @@ partial class TemplateContext : IFormatProvider
         try
         {
             _objectToStringLevel++;
-            if (ObjectRecursionLimit != 0 && _objectToStringLevel > ObjectRecursionLimit)
+            if (ObjectRecursionLimit > 0 && _objectToStringLevel > ObjectRecursionLimit)
                 throw new InvalidOperationException("Structure is too deeply nested or contains reference loops.");
             var result = ObjectToStringImpl(value, nested);
             if (LimitToString > 0 && _objectToStringLevel == 1 && result is not null && result.Length >= LimitToString)

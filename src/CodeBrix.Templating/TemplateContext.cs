@@ -278,6 +278,7 @@ partial class TemplateContext
 
     /// <summary>
     /// Gets or sets the maximum recursion depth while traversing an object graph during the ToString operation.  Default is 20.
+    /// Set to 0 to disable checking the object recursion limit.
     /// </summary>
     public int ObjectRecursionLimit { get; set; }
 
@@ -322,7 +323,7 @@ partial class TemplateContext
     /// <summary>
     /// A loop limit that caps cumulative iterations across each dynamically nested iteration tree. Default is 1000.
     /// Language loops and internal iteration share the same budget until the outermost iteration exits.
-    /// Set to 0 to disable checking loop limit.
+    /// Set to 0 to disable checking loop limit (a negative value also disables it).
     /// </summary>
     public int LoopLimit { get; set; }
 
@@ -335,7 +336,7 @@ partial class TemplateContext
 
     /// <summary>
     /// A function recursive limit count used at runtime to limit the number of recursive calls. Default is 100
-    /// Set to 0 to disable checking recursive call limit.
+    /// Set to 0 to disable checking recursive call limit (a negative value also disables it).
     /// </summary>
     public int RecursiveLimit { get; set; }
 
@@ -1105,7 +1106,7 @@ partial class TemplateContext
         }
 
         _callDepth++;
-        if (RecursiveLimit != 0 && _callDepth > RecursiveLimit)
+        if (RecursiveLimit > 0 && _callDepth > RecursiveLimit)
         {
             throw new ScriptRuntimeException(span, $"Exceeding number of recursive depth limit `{RecursiveLimit}` for node: `{node}`"); // unit test: 305-func-error2.txt
         }
@@ -1235,7 +1236,7 @@ partial class TemplateContext
             ? LoopLimitQueryable.GetValueOrDefault(LoopLimit)
             : LoopLimit;
 
-        if (loopLimit != 0 && _loopStep > loopLimit)
+        if (loopLimit > 0 && _loopStep > loopLimit)
         {
             throw new ScriptRuntimeException(span, $"Exceeding number of iteration limit `{loopLimit}` for internal iteration.");
         }
@@ -1263,7 +1264,7 @@ partial class TemplateContext
                 }
         }
 
-        if (loopLimit != 0 && _loopStep > loopLimit)
+        if (loopLimit > 0 && _loopStep > loopLimit)
         {
             var currentLoopStatement = _loops.Peek();
             throw new ScriptRuntimeException(currentLoopStatement.Span, $"Exceeding number of iteration limit `{loopLimit}` for loop statement."); // unit test: 215-for-statement-error1.txt

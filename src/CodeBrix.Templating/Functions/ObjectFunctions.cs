@@ -578,7 +578,7 @@ class ObjectFunctions : ScriptObject
             }
 
             depth++;
-            if (context.ObjectRecursionLimit != 0 && depth > context.ObjectRecursionLimit)
+            if (context.ObjectRecursionLimit > 0 && depth > context.ObjectRecursionLimit)
             {
                 throw new InvalidOperationException("Structure is too deeply nested or contains reference loops.");
             }
